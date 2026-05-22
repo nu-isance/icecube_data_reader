@@ -35,8 +35,7 @@ jobs:
       run: |
         sudo apt-get install pandoc
         python -m pip install --upgrade pip
-        python -m pip install sphinx nbsphinx
-        python -m pip install .
+        python -m pip install ".[docs]"
       
     - name: Generate Docs
       run: |
