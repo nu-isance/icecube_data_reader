@@ -14,9 +14,9 @@ from astropy.time import Time
 
 import logging
 
-from .downloader import data_directory, I3_14, available_datasets, IceCubeData
-from .event_types import IC40, IC59, IC79, IC86, suffixes
-from .lifetime import LifeTime
+from icecube_data_reader.downloader import data_directory, I3_14, available_datasets, IceCubeData
+from icecube_data_reader.event_types import IC40, IC59, IC79, IC86, suffixes
+from icecube_data_reader.lifetime import LifeTime
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

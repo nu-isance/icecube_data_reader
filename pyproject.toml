@@ -21,6 +21,9 @@ dependencies = [
     "numpy",
     "astropy",
     "scipy",
+    "tqdm",
+    "requests",
+    "requests_cache",
 ]
 
 [project.optional-dependencies]
