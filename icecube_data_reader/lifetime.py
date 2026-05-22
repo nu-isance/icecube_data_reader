@@ -88,8 +88,7 @@ class DR2LifeTime(LifeTime):
             )
         except FileNotFoundError:
             data_interface = IceCubeData()
-            dataset = data_interface.find(I3_14)
-            data_interface.fetch(dataset)
+            data_interface.fetch(I3_14)
 
         # Array of start and end times
         self._times = np.zeros((4, 2))

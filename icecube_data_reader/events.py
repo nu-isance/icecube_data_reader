@@ -164,8 +164,7 @@ class IceTrackDR2Events(Events):
             )
         except FileNotFoundError:
             data_interface = IceCubeData()
-            dataset = data_interface.find(I3_14)
-            data_interface.fetch(dataset)
+            data_interface.fetch(I3_14)
 
         energy = []
         ra = []
