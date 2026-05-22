@@ -17,10 +17,8 @@ permissions:
   pages: write
   id-token: write
 
-
-
 jobs:
-  setup:
+  build:
     name: Setup Docs
     runs-on: ubuntu-latest
     steps:
@@ -42,4 +40,24 @@ jobs:
         sphinx-apidoc -f -e -o docs/api icecube_data_reader '*test*'
         sphinx-build -M html docs docs/_build
 
-# TODO: add pages setup and deploy once we have a working organisation for hnu or some other website
+    - name: Setup Pages
+      uses: actions/configure-pages@v6
+
+    - name: Upload pages artifacts
+      id: deployment
+      uses: actions/upload-pages-artifact@v5
+      with:
+        path: './docs/_build/html'
+
+  deploy:
+    name: Deploy docs
+    if: ${{ github.event_name == 'push' && github.ref_name == 'master' }}
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
