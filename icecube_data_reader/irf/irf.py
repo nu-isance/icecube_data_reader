@@ -5,7 +5,6 @@ Classes to organise energy and angular resolution of IceCube track events
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Self
-from itertools import pairwise
 import numpy as np
 from scipy import stats
 import astropy.units as u
@@ -56,7 +55,7 @@ class IceTrackDR2EnergyResolution(EnergyResolution):
         )
         # Create empty array for rv_histograms storing the energy resolution
         # for each bin of true energy and true declination
-        self.reco_energy_hists = np.empty(
+        self.recoE_hists = np.empty(
             (self.tE_bin_edges.size - 1, self.sin_dec_bin_edges.size - 1),
             dtype=stats.rv_histogram,
         )
@@ -69,11 +68,11 @@ class IceTrackDR2EnergyResolution(EnergyResolution):
         :type dec: u.rad
         """
         dec_idx = np.digitize(dec.to_value(u.deg), self.dec_bin_edges) - 1
-        for c_tE, (true_E_low, true_E_high) in enumerate(pairwise(self.tE_bin_edges)):
+        for c_tE in range(self.tE_bin_edges.size - 1):
             frac_counts, bins = self.marginalise_over_angles(c_tE, dec_idx)
             # Set density=False because smearing matrix provides unnormalised fractional counts
             hist = stats.rv_histogram((frac_counts, bins), density=False)
-            self.reco_energy_hists[c_tE, dec_idx] = hist
+            self.recoE_hists[c_tE, dec_idx] = hist
             self.recoE_bin_edges[c_tE, dec_idx] = bins
 
     @classmethod
