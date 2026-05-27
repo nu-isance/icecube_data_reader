@@ -41,22 +41,27 @@ class IceTrackDR2EnergyResolution(EnergyResolution):
         self.season = season
 
         # Extract true energy bins and declination bins, fixed for all Ereco distributions
-        self.tE_bin_edges = np.sort(np.array(list(set(self.data[:, 0:2].flatten()))))
-        self.dec_bin_edges = np.sort(np.array(list(set(self.data[:, 2:4].flatten()))))
-        self.sin_dec_bin_edges = np.sin(self.dec_bin_edges)
+        self.log_tE_bin_edges = np.sort(
+            np.array(list(set(self.data[:, 0:2].flatten())))
+        )
+        self.tE_bin_edges = np.power(10, self.log_tE_bin_edges) << u.GeV
+        self.dec_bin_edges = (
+            np.sort(np.array(list(set(self.data[:, 2:4].flatten())))) << u.deg
+        )
+        self.sin_dec_bin_edges = np.sin(self.dec_bin_edges.to_value(u.rad))
 
-        logging.debug(f"True energy bin edges: {self.tE_bin_edges}")
+        logging.debug(f"True energy bin edges: {self.log_tE_bin_edges}")
         logging.debug(f"Dec bin edges: {self.dec_bin_edges}")
 
         # Break naming convention because r and t are too close on the keyboard
         self.recoE_bin_edges = np.empty(
-            (self.tE_bin_edges.size - 1, self.sin_dec_bin_edges.size - 1),
+            (self.log_tE_bin_edges.size - 1, self.sin_dec_bin_edges.size - 1),
             dtype=np.ndarray,
         )
         # Create empty array for rv_histograms storing the energy resolution
         # for each bin of true energy and true declination
         self.recoE_hists = np.empty(
-            (self.tE_bin_edges.size - 1, self.sin_dec_bin_edges.size - 1),
+            (self.log_tE_bin_edges.size - 1, self.sin_dec_bin_edges.size - 1),
             dtype=stats.rv_histogram,
         )
 
@@ -67,8 +72,8 @@ class IceTrackDR2EnergyResolution(EnergyResolution):
         :param dec: Declination
         :type dec: u.rad
         """
-        dec_idx = np.digitize(dec.to_value(u.deg), self.dec_bin_edges) - 1
-        for c_tE in range(self.tE_bin_edges.size - 1):
+        dec_idx = np.digitize(dec, self.dec_bin_edges) - 1
+        for c_tE in range(self.log_tE_bin_edges.size - 1):
             frac_counts, bins = self.marginalise_over_angles(c_tE, dec_idx)
             # Set density=False because smearing matrix provides unnormalised fractional counts
             hist = stats.rv_histogram((frac_counts, bins), density=False)
@@ -112,8 +117,8 @@ class IceTrackDR2EnergyResolution(EnergyResolution):
 
         ereco_idx = 4
 
-        data = self.data[self.data[:, 0] == self.tE_bin_edges[c_e]]
-        reduced_data = data[data[:, 2] == self.dec_bin_edges[c_d]]
+        data = self.data[self.data[:, 0] == self.log_tE_bin_edges[c_e]]
+        reduced_data = data[data[:, 2] == self.dec_bin_edges[c_d].to_value(u.deg)]
 
         bins = np.array(
             sorted(
