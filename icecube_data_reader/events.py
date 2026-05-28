@@ -326,8 +326,8 @@ class IceTrackDR2Events(Events):
             data_interface.fetch(I3_14)
 
         energies = []
-        ra = []
-        dec = []
+        ras = []
+        decs = []
         mjd = []
         ang_errs = []
         event_types = []
@@ -342,8 +342,8 @@ class IceTrackDR2Events(Events):
 
             energies.append(data[:, cls.energies_])
             mjd.append(data[:, cls.mjd_])
-            ra.append(data[:, cls.ra_])
-            dec.append(data[:, cls.dec_])
+            ras.append(data[:, cls.ras_])
+            decs.append(data[:, cls.decs_])
             ang_errs.append(data[:, cls.ang_errs_])
             event_types.append(len(data[:, cls.energies_]) * [s])
 
@@ -356,14 +356,14 @@ class IceTrackDR2Events(Events):
 
         energies = np.power(10, np.concatenate(energies)) << u.GeV
         mjd = Time(np.concatenate(mjd), format="mjd")
-        ra = np.concatenate(ra) << u.deg
-        dec = np.concatenate(dec) << u.deg
+        ras = np.concatenate(ras) << u.deg
+        decs = np.concatenate(decs) << u.deg
         ang_errs = np.concatenate(ang_errs) << u.deg
         event_types = np.concatenate(event_types)
-        coords = SkyCoord(ra=ra, dec=dec, frame="icrs")
+        coords = SkyCoord(ra=ras, dec=decs, frame="icrs")
 
         events = cls(energies, coords, event_types, ang_errs, mjd)
-        events._ra = ra
-        events._dec = dec
+        events._ras = ras
+        events._decs = decs
 
         return events
