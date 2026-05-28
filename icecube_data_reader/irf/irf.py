@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
+from line_profiler import profile
+
+
 class InstrumentResponseFunction(ABC):
     @classmethod
     @abstractmethod
@@ -87,6 +90,7 @@ class IceTrackDR2InstrumentResponseFunction(
         ]
 
     @u.quantity_input
+    @profile
     def create_ang_res_at_dec(self, dec: u.rad) -> None:
         """Create angular resolution histograms at provided declination
 
@@ -96,21 +100,23 @@ class IceTrackDR2InstrumentResponseFunction(
 
         dec_idx = np.digitize(dec, self.dec_bin_edges) - 1
         for c_tE in range(self.log_tE_bin_centers.size):
+            data = self.data[self.data[:, 0] == self.log_tE_bin_edges[c_tE]]
+            data = data[data[:, 2] == self.dec_bin_edges[dec_idx]]
             if not isinstance(self.recoE_hists[c_tE, dec_idx], stats.rv_histogram):
-                frac_counts, bins, data = self._create_recoE_distribution(
-                    c_tE, dec_idx, return_data=True
+                frac_counts, bins, ereco_data = self._create_recoE_distribution(
+                    c_tE, dec_idx, data=data, return_data=True
                 )
                 self.recoE_hists[c_tE, dec_idx] = stats.rv_histogram(
                     (frac_counts, bins), density=False
                 )
                 self.recoE_bin_edges[c_tE, dec_idx] = bins
             else:
-                data = None
+                ereco_data = None
                 bins = self.recoE_bin_edges[c_tE, dec_idx]
             for c_rE in range(bins.size - 1):
                 self.psf_hists[c_tE][dec_idx].append([])
                 self.ang_err_hists[c_tE][dec_idx].append([])
-                self.create_angular_distributions(c_tE, dec_idx, c_rE, data=data)
+                self.create_angular_distributions(c_tE, dec_idx, c_rE, data=ereco_data)
             pass
 
         # TODO needs to call create_eres_at_dec to ensure eres sampling is possible
@@ -118,6 +124,7 @@ class IceTrackDR2InstrumentResponseFunction(
         pass
 
     @u.quantity_input
+    @profile
     def create_IRF_at_dec(self, dec: u.rad) -> None:
         """Create entire chain of IRF distributions at provided declination.
 
@@ -128,6 +135,7 @@ class IceTrackDR2InstrumentResponseFunction(
         self.create_ang_res_at_dec(dec)
 
     @u.quantity_input
+    @profile
     def create_eres_at_dec(self, dec: u.rad) -> None:
         """Create energy resolution histograms at provided declination
 
@@ -160,8 +168,13 @@ class IceTrackDR2InstrumentResponseFunction(
 
         return cls(path, season)
 
+    @profile
     def _create_recoE_distribution(
-        self, c_e: int, c_d: int, return_data: bool = False
+        self,
+        c_e: int,
+        c_d: int,
+        data: None | np.ndarray = None,
+        return_data: bool = False,
     ) -> tuple[np.ndarray, ...]:
         """Creates the reconstructed energy distribution for given true
         energy and declination by marginalising over the kinematic (PSF) angle
@@ -171,6 +184,9 @@ class IceTrackDR2InstrumentResponseFunction(
         :type c_e: int
         :param c_d: Index of true declination (conversely sin(declination)) bin
         :type c_d: int
+        :param data: Relevant entries (i.e. for true energy, declination)
+        of the smearing matrix, defaults to None
+        :type data: None | np.ndarray, optional
         :param return_data: If true return the relevant entries of the smearing matrix, defaults to False
         :type return_data: bool, optional
         :return: Tuple of fractional counts per bin and bin edges, optional relevant entries
@@ -180,9 +196,12 @@ class IceTrackDR2InstrumentResponseFunction(
 
         ereco_idx = 4
 
-        # Get entries at relevant true energy and declination
-        data = self.data[self.data[:, 0] == self.log_tE_bin_edges[c_e]]
-        reduced_data = data[data[:, 2] == self.dec_bin_edges[c_d].to_value(u.deg)]
+        if data is None:
+            # Get entries at relevant true energy and declination
+            data = self.data[self.data[:, 2] == self.dec_bin_edges[c_d].to_value(u.deg)]
+            reduced_data = data[data[:, 0] == self.log_tE_bin_edges[c_e]]
+        else:
+            reduced_data = data
 
         # Create bin edges of reco energy
         bins = np.array(
@@ -211,6 +230,7 @@ class IceTrackDR2InstrumentResponseFunction(
             return frac_counts, bins, reduced_data
         return frac_counts, bins
 
+    @profile
     def create_angular_distributions(
         self,
         c_e: int,
@@ -280,6 +300,7 @@ class IceTrackDR2InstrumentResponseFunction(
             return frac_counts, bins, reduced_data
         return frac_counts, bins
 
+    @profile
     def _create_ang_err_distribution(
         self,
         c_e: int,
@@ -307,3 +328,10 @@ class IceTrackDR2InstrumentResponseFunction(
             frac_counts[c_b] = np.sum(reduced_data[indices, -1])
             hist = stats.rv_histogram((frac_counts, bins), density=False)
             self.ang_err_hists[c_e][c_d][c_rE][c_psf].append(hist)
+
+
+if __name__ == "__main__":
+    from icecube_data_reader.event_types import IC86
+
+    irf = IceTrackDR2InstrumentResponseFunction.load(IC86)
+    irf.create_IRF_at_dec(0.0 * u.deg)
