@@ -11,15 +11,32 @@ import numpy.typing as npt
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from astropy.time import Time
+import matplotlib.pyplot as plt
+from matplotlib import colors
+import matplotlib.cm as cm
 import h5py
 from time import time as thyme
 
-from icecube_data_reader.downloader import data_directory, I3_14, available_datasets, IceCubeData
-from icecube_data_reader.event_types import IC40, IC59, IC79, IC86, suffixes, EventType, Refrigerator
+from icecube_data_reader.downloader import (
+    data_directory,
+    I3_14,
+    available_datasets,
+    IceCubeData,
+)
+from icecube_data_reader.event_types import (
+    IC40,
+    IC59,
+    IC79,
+    IC86,
+    suffixes,
+    EventType,
+    Refrigerator,
+)
 from icecube_data_reader.lifetime import LifeTime
 
 from typing import Self
 import logging
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -52,7 +69,7 @@ class Events(ABC):
     @property
     def dec(self):
         return self._dec
-    
+
     @property
     def unit_vector(self):
         return self._unit_vector
@@ -60,11 +77,10 @@ class Events(ABC):
     @property
     def event_type(self):
         return self._event_type
-    
+
     @property
     def int_event_type(self):
         return self._int_event_type
-
 
     @property
     def N(self):
@@ -78,7 +94,7 @@ class Events(ABC):
         :type Emin: u.GeV
         :param Emax: Maximum energy, defaults to np.inf*u.GeV
         :type Emax: u.GeV, optional
-        """        
+        """
         pass
 
     @classmethod
@@ -88,6 +104,10 @@ class Events(ABC):
 
     @abstractmethod
     def to_file():
+        pass
+
+    @abstractmethod
+    def remove(self, i) -> None:
         pass
 
 
@@ -139,7 +159,7 @@ class IceTrackDR2Events(Events):
     def scramble_mjd(self, lifetime: LifeTime, seed: int = 42) -> None:
         pass
 
-    def select(self, mask: npt.NDArray[np.bool_]):
+    def select(self, mask: npt.NDArray[np.bool_]) -> None:
         """
         Select some subset of existing events by providing a mask.
         :param mask: Array of bools with same length as event properties.
@@ -163,13 +183,26 @@ class IceTrackDR2Events(Events):
         self._ang_err = self._ang_err[mask]
         self._mjd = self._mjd[mask]
 
+    def remove(self, i: int) -> None:
+        """
+        Remove the event at index i
+        :param i: Event index
+        :type i: int
+        """
+        self._energy = np.delete(self._energy, i)
+        self._coord = np.delete(self._coord, i)
+        self._unit_vector = np.delete(self._unit_vector, i, axis=0)
+        self._event_type = np.delete(self._event_type, i)
+        self._ang_err = np.delete(self._ang_err, i)
+        self._mjd = np.delete(self._mjd, i)
+
     def to_file(
-            self,
-            path: Path,
-            append: bool = False,
-            group_name: str | None = None,
-            overwrite: bool = False
-        ) -> Path:
+        self,
+        path: Path,
+        append: bool = False,
+        group_name: str | None = None,
+        overwrite: bool = False,
+    ) -> Path:
         """Write events to file.
         Keyworded arguments control behaviour with existing files.
         If not overwrite, but `path` exists, append a timestamp to the file name.
@@ -241,7 +274,7 @@ class IceTrackDR2Events(Events):
     def from_file(
         cls,
         filename: Path,
-        group_name:str = None,
+        group_name: str = None,
     ) -> Self:
         """Load events from .h5 file
 
@@ -249,7 +282,7 @@ class IceTrackDR2Events(Events):
         :type filename: Path
         :param group_name: Name of events group, if provided when writing to file, defaults to None
         :type group_name: str, optional
-        """        
+        """
         with h5py.File(filename, "r") as f:
             if group_name is None:
                 events_folder = f["events"]
@@ -277,6 +310,18 @@ class IceTrackDR2Events(Events):
 
         return events
 
+    @u.quantity_input
+    def apply_energy_cut(self, Emin: u.GeV, Emax=np.inf * u.GeV) -> None:
+        """Apply energy cuts to events
+
+        :param Emin: Minimum allowed energy
+        :type Emin: u.GeV
+        :param Emax: Maximum allowed energy, defaults to np.inf*u.GeV
+        :type Emax: u.GeV, optional
+        """
+        mask = (self.energy >= Emin) & (self.energy <= Emax)
+        self.select(mask)
+
     @classmethod
     def from_event_files(cls, *seasons: EventType) -> Self:
         """
@@ -284,7 +329,6 @@ class IceTrackDR2Events(Events):
         If none are provided, use all.
 
         :param seasons: Seasons to load
-
         :returns: Event container :py:class:`icecube_data_reader.events.Events`
         """
 
