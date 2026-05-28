@@ -12,11 +12,13 @@ def test_event_number():
     events = IceTrackDR2Events.from_event_files()
     assert events.N == 1643355
 
+
 @pytest.fixture
 def test_saving(output_directory):
     events = IceTrackDR2Events.from_event_files(IC40)
     path = events.to_file(Path(output_directory) / "ic40_events.h5")
     return (path, events)
+
 
 def test_overwriting(output_directory, test_saving):
     path, events = test_saving
@@ -28,7 +30,10 @@ def test_loading(test_saving):
     path, ic40 = test_saving
     loaded = IceTrackDR2Events.from_file(path)
 
-    assert np.all(np.isclose(loaded.energy.to_value(u.GeV), ic40.energy.to_value(u.GeV)))
+    assert np.all(
+        np.isclose(loaded.energies.to_value(u.GeV), ic40.energies.to_value(u.GeV))
+    )
+
 
 def test_selecting(test_saving):
     idx = 5
@@ -37,12 +42,12 @@ def test_selecting(test_saving):
     mask = np.zeros(N, dtype=bool)
     mask[idx] = True
 
-    e = events.energy[idx].to_value(u.GeV)
-    et = events.int_event_type[idx]
+    e = events.energies[idx].to_value(u.GeV)
+    et = events.int_event_types[idx]
     events.select(mask)
 
-    assert pytest.approx(events.energy[0].to_value(u.GeV)) == e
-    assert et == events.int_event_type[0]
+    assert pytest.approx(events.energies[0].to_value(u.GeV)) == e
+    assert et == events.int_event_types[0]
 
 
 def test_erroneous_selecting(test_saving):
@@ -53,6 +58,6 @@ def test_erroneous_selecting(test_saving):
     mask[idx] = True
 
     with pytest.raises(ValueError, match="Mask needs to be of the same length as N."):
-        mask = np.zeros(N+1, dtype=bool)
+        mask = np.zeros(N + 1, dtype=bool)
         mask[1] = 1
         events.select(mask)

@@ -51,16 +51,16 @@ class Events(ABC):
         return self._mjd
 
     @property
-    def energy(self):
-        return self._energy
+    def energies(self):
+        return self._energies
 
     @property
-    def ang_err(self):
-        return self._ang_err
+    def ang_errs(self):
+        return self._ang_errs
 
     @property
-    def coord(self):
-        return self._coord
+    def coords(self):
+        return self._coords
 
     @property
     def ra(self):
@@ -71,20 +71,20 @@ class Events(ABC):
         return self._dec
 
     @property
-    def unit_vector(self):
-        return self._unit_vector
+    def unit_vectors(self):
+        return self._unit_vectors
 
     @property
-    def event_type(self):
-        return self._event_type
+    def event_types(self):
+        return self._event_types
 
     @property
-    def int_event_type(self):
-        return self._int_event_type
+    def int_event_types(self):
+        return self._int_event_types
 
     @property
     def N(self):
-        return self.event_type.size
+        return self.event_types.size
 
     @u.quantity_input
     def apply_energy_cut(self, Emin: u.GeV, Emax: u.GeV = np.inf * u.GeV):
@@ -117,29 +117,31 @@ class IceTrackDR2Events(Events):
     """
 
     mjd_ = 3
-    energy_ = 4
-    ang_err_ = 5
-    ra_ = 6
-    dec_ = 7
+    energies_ = 4
+    ang_errs_ = 5
+    ras_ = 6
+    decs_ = 7
 
     @u.quantity_input
     def __init__(
         self,
-        energy: u.GeV,
-        coord: SkyCoord,
-        event_type: np.ndarray,
-        ang_err: u.deg,
+        energies: u.GeV,
+        coords: SkyCoord,
+        event_types: np.ndarray,
+        ang_errs: u.deg,
         mjd: Time,
     ):
-        self._energy = energy
-        self._coord = coord
-        self._event_type = event_type
-        self._int_event_type = np.array([_.S for _ in event_type])
-        self._ang_err = ang_err
+        self._energies = energies
+        self._coords = coords
+        self._event_types = event_types
+        self._int_event_types = np.array([_.S for _ in event_types])
+        self._ang_errs = ang_errs
         self._mjd = mjd
-        self._coord.representation_type = "cartesian"
-        self._unit_vector = np.array([coord.x.value, coord.y.value, coord.z.value]).T
-        self._coord.representation_type = "spherical"
+        self._coords.representation_type = "cartesian"
+        self._unit_vectors = np.array(
+            [coords.x.value, coords.y.value, coords.z.value]
+        ).T
+        self._coords.representation_type = "spherical"
 
     def scramble_ra(self, seed: int = 42) -> None:
         """
@@ -175,12 +177,12 @@ class IceTrackDR2Events(Events):
         except AttributeError:
             pass
 
-        self._energy = self._energy[mask]
-        self._coord = self._coord[mask]
-        self._unit_vector = self._unit_vector[mask]
-        self._event_type = self._event_type[mask]
-        self._int_event_type = self._int_event_type[mask]
-        self._ang_err = self._ang_err[mask]
+        self._energies = self._energies[mask]
+        self._coords = self._coords[mask]
+        self._unit_vectors = self._unit_vectors[mask]
+        self._event_types = self._event_types[mask]
+        self._int_event_types = self._int_event_types[mask]
+        self._ang_errs = self._ang_errs[mask]
         self._mjd = self._mjd[mask]
 
     def remove(self, i: int) -> None:
@@ -220,12 +222,12 @@ class IceTrackDR2Events(Events):
         :rtype: Path
         """
 
-        self._file_keys = ["energy", "unit_vector", "event_type", "ang_err", "mjd"]
+        self._file_keys = ["energies", "unit_vectors", "event_types", "ang_errs", "mjd"]
         self._file_values = [
-            self.energy.to(u.GeV).value,
-            self.unit_vector,
-            self.int_event_type,
-            self.ang_err.to(u.deg).value,
+            self.energies.to(u.GeV).value,
+            self.unit_vectors,
+            self.int_event_types,
+            self.ang_errs.to(u.deg).value,
             self.mjd.mjd,
         ]
 
@@ -289,24 +291,24 @@ class IceTrackDR2Events(Events):
             else:
                 events_folder = f[group_name]
 
-            energy = events_folder["energy"][()] * u.GeV
-            uv = events_folder["unit_vector"][()]
-            int_event_type = events_folder["event_type"][()]
-            event_type = np.array([Refrigerator.int2dm(_) for _ in int_event_type])
-            ang_err = events_folder["ang_err"][()] * u.deg
+            energies = events_folder["energies"][()] * u.GeV
+            uv = events_folder["unit_vectors"][()]
+            int_event_types = events_folder["event_types"][()]
+            event_types = np.array([Refrigerator.int2dm(_) for _ in int_event_types])
+            ang_errs = events_folder["ang_errs"][()] * u.deg
 
             # For backwards compatibility
             try:
                 mjd = events_folder["mjd"][()]
             except KeyError:
-                mjd = [99.0] * len(energy)
+                mjd = [99.0] * len(energies)
 
-        coord = SkyCoord(
+        coords = SkyCoord(
             uv.T[0], uv.T[1], uv.T[2], representation_type="cartesian", frame="icrs"
         )
         mjd = Time(mjd, format="mjd")
-        coord.representation_type = "spherical"
-        events = cls(energy, coord, event_type, ang_err, mjd)
+        coords.representation_type = "spherical"
+        events = cls(energies, coords, event_types, ang_errs, mjd)
 
         return events
 
@@ -354,12 +356,12 @@ class IceTrackDR2Events(Events):
             data_interface = IceCubeData()
             data_interface.fetch(I3_14)
 
-        energy = []
-        ra = []
-        dec = []
+        energies = []
+        ras = []
+        decs = []
         mjd = []
-        ang_err = []
-        event_type = []
+        ang_errs = []
+        event_types = []
 
         def _append_data(s, suffering: str = ""):
             data = np.loadtxt(
@@ -369,12 +371,12 @@ class IceTrackDR2Events(Events):
                 )
             )
 
-            energy.append(data[:, cls.energy_])
+            energies.append(data[:, cls.energies_])
             mjd.append(data[:, cls.mjd_])
-            ra.append(data[:, cls.ra_])
-            dec.append(data[:, cls.dec_])
-            ang_err.append(data[:, cls.ang_err_])
-            event_type.append(len(data[:, cls.energy_]) * [s])
+            ras.append(data[:, cls.ras_])
+            decs.append(data[:, cls.decs_])
+            ang_errs.append(data[:, cls.ang_errs_])
+            event_types.append(len(data[:, cls.energies_]) * [s])
 
         for s in seasons:
             if s == IC86:
@@ -383,16 +385,16 @@ class IceTrackDR2Events(Events):
             else:
                 _append_data(s)
 
-        energy = np.power(10, np.concatenate(energy)) << u.GeV
+        energies = np.power(10, np.concatenate(energies)) << u.GeV
         mjd = Time(np.concatenate(mjd), format="mjd")
-        ra = np.concatenate(ra) << u.deg
-        dec = np.concatenate(dec) << u.deg
-        ang_err = np.concatenate(ang_err) << u.deg
-        event_type = np.concatenate(event_type)
-        coord = SkyCoord(ra=ra, dec=dec, frame="icrs")
+        ras = np.concatenate(ras) << u.deg
+        decs = np.concatenate(decs) << u.deg
+        ang_errs = np.concatenate(ang_errs) << u.deg
+        event_types = np.concatenate(event_types)
+        coords = SkyCoord(ra=ras, dec=decs, frame="icrs")
 
-        events = cls(energy, coord, event_type, ang_err, mjd)
-        events._ra = ra
-        events._dec = dec
+        events = cls(energies, coords, event_types, ang_errs, mjd)
+        events._ras = ras
+        events._decs = decs
 
         return events
