@@ -8,6 +8,7 @@ from typing import Self
 import numpy as np
 from scipy import stats
 import astropy.units as u
+from astropy.coordinates import SkyCoord
 
 from icecube_data_reader.downloader import available_datasets, data_directory, I3_14
 from icecube_data_reader.event_types import EventType
@@ -62,6 +63,7 @@ class IceTrackDR2InstrumentResponseFunction(
         # Create empty array for rv_histograms storing the energy resolution
         # for each bin of true energy and true declination
         self.recoE_hists = [None] * self.log_tE_bin_centers.size
+        self.recoE_sampling = [None] * self.log_tE_bin_centers.size
         # Use lists here for possibly different numbers of bins for each ereco/psf/angerr histogram
         self.psf_hists = [[] for _ in self.log_tE_bin_centers]
         self.psf_bin_edges = [[] for _ in self.log_tE_bin_centers]
@@ -83,7 +85,7 @@ class IceTrackDR2InstrumentResponseFunction(
         """Create energy resolution histograms"""
 
         for c_tE in range(self.log_tE_bin_edges.size - 1):
-            if isinstance(self.recoE_hists[c_tE], stats.rv_histogram):
+            if isinstance(self.recoE_sampling[c_tE], stats.rv_histogram):
                 continue
             self._create_recoE_distribution(c_tE)
 
@@ -93,11 +95,11 @@ class IceTrackDR2InstrumentResponseFunction(
         """Create angular resolution histograms"""
 
         for c_tE in range(self.log_tE_bin_centers.size):
-            if not isinstance(self.recoE_hists[c_tE], stats.rv_histogram):
+            if not isinstance(self.recoE_sampling[c_tE], stats.rv_histogram):
                 frac_counts, bins, ereco_data = self._create_recoE_distribution(
                     c_tE, return_data=True
                 )
-                self.recoE_hists[c_tE] = stats.rv_histogram(
+                self.recoE_sampling[c_tE] = stats.rv_histogram(
                     (frac_counts, bins), density=False
                 )
                 self.recoE_bin_edges[c_tE] = bins
@@ -155,10 +157,56 @@ class IceTrackDR2InstrumentResponseFunction(
         irf.tE_bin_edges = tE_bin_edges
         irf.dec_bin_edges = dec_bin_edges
         irf.dec_idx = dec_idx
+        irf.dec_min = dec_bin_edges[dec_idx] * u.deg
+        irf.dec_max = dec_bin_edges[dec_idx + 1] * u.deg
 
         irf._post_init()
 
         return irf
+
+    @u.quantity_input
+    def sample_energy(self, coord: SkyCoord, Etrue: u.GeV, seed: int = 42, N: int = 1):
+        """Simulate events
+
+        :param coord: Source coordinate
+        :type coord: SkyCoord
+        :param Etrue: True neutrino energy
+        :type Etrue: u.GeV
+        :param seed: Random seed, defaults to 42
+        :type seed: int, optional
+        :return: _description_
+        :rtype: _type_
+        """
+
+        if Etrue.shape == () and N > 1:
+            Etrue = np.full(N, Etrue.to_value(u.GeV)) << u.GeV
+        else:
+            Etrue = np.atleast_1d(Etrue.to_value(u.GeV)) << u.GeV
+        coord.representation_type = "spherical"
+        ra = coord.ra
+        dec = coord.dec
+        if dec > self.dec_max or dec < self.dec_min:
+            raise ValueError("IRF for DEC={dec} is not constructed.")
+
+        coord.representation_type = "cartesian"
+        unit_vector = np.array([coord.x, coord.y, coord.z])
+
+        log_Et = np.log10(Etrue.to_value(u.GeV))
+        tE_idx = np.digitize(log_Et, self.log_tE_bin_edges) - 1
+
+        recoE_out = np.zeros(Etrue.shape)
+
+        set_e = np.unique(tE_idx)
+        for idx_e in set_e:
+            _index_e = np.argwhere(idx_e == tE_idx).squeeze()
+            recoE = self.recoE_sampling[idx_e].rvs(
+                size=_index_e.size, random_state=seed
+            )
+            recoE_out[_index_e] = recoE
+
+        if recoE_out.size == 1:
+            return recoE_out[0]
+        return recoE_out
 
     @profile
     def _create_recoE_distribution(
@@ -197,8 +245,11 @@ class IceTrackDR2InstrumentResponseFunction(
             indices = np.nonzero(np.isclose(b, reduced_data[:, self.ereco_idx]))
             frac_counts[c_b] = np.sum(reduced_data[indices, -1])
 
-        self.recoE_hists[c_e] = stats.rv_histogram((frac_counts, bins), density=False)
+        self.recoE_sampling[c_e] = stats.rv_histogram(
+            (frac_counts, bins), density=False
+        )
         self.recoE_bin_edges[c_e] = bins
+        self.recoE_hists[c_e] = frac_counts / (frac_counts * np.diff(bins)).sum()
 
         if return_data:
             return frac_counts, bins, reduced_data
@@ -259,7 +310,7 @@ class IceTrackDR2InstrumentResponseFunction(
 
         hist = stats.rv_histogram((frac_counts, bins), density=False)
         self.psf_sampling[c_e][c_rE] = hist
-        self.psf_hists[c_e][c_rE] = frac_counts / frac_counts.sum()
+        self.psf_hists[c_e][c_rE] = frac_counts / (frac_counts * np.diff(bins)).sum()
         if return_data:
             return frac_counts, bins, reduced_data
         return frac_counts, bins
@@ -301,7 +352,9 @@ class IceTrackDR2InstrumentResponseFunction(
             frac_counts[c_b] = np.sum(reduced_data[indices, -1])
         hist = stats.rv_histogram((frac_counts, bins), density=False)
         self.ang_err_sampling[c_e][c_rE][c_psf] = hist
-        self.ang_err_hists[c_e][c_rE][c_psf] = frac_counts / frac_counts.sum()
+        self.ang_err_hists[c_e][c_rE][c_psf] = (
+            frac_counts / (frac_counts * np.diff(bins)).sum()
+        )
 
 
 if __name__ == "__main__":
