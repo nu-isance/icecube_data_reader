@@ -1,10 +1,10 @@
-from icecube_data_reader.lifetime import DR2LifeTime
+from icecube_data_reader.lifetime import IceTrackDR2LifeTime
 from icecube_data_reader.event_types import DR2, IC40
 import numpy as np
 from astropy import units as u
 import pytest
 
-lt = DR2LifeTime()
+lt = IceTrackDR2LifeTime()
 
 
 def test_total_lt():
@@ -22,3 +22,6 @@ def test_lt_from_mjd():
     obs_time = lt.lifetime_from_mjd(mjd_min, mjd_max)[IC40].to_value(u.d)
     comparison = np.sum(np.diff(lt._data[IC40])[:2])
     assert pytest.approx(obs_time) == comparison
+
+def test_mjd_from_season():
+    pass

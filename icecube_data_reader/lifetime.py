@@ -58,11 +58,27 @@ class LifeTime(ABC):
             ) * self._lifetimes[s]
             # set atol to 1e-9 days, so we are below the time resolution of event mjd (1e-8 days)
             if squeeze and np.isclose(time.to_value(u.d), 0.0, atol=1e-9):
-                time = 0 * u.yr
+                continue
 
             output[s] = time
 
         return output
+    
+    def mjd_from_season(self, season: EventType) -> tuple[float, float]:
+        """Return MJD_min, MJD_max for provided season
+
+        :param season: Event type
+        :type season: EventType
+        :return: Tuple of MJD_min, MJD_max
+        :rtype: tuple[float, float]
+        """
+
+        for c, v in enumerate([IC40, IC59, IC79, IC86]):
+            if v == season:
+                break
+
+        return self._times[c, 0], self._times[c, 1]
+
 
     def lifetime_from_season(
         self, *seasons
@@ -81,7 +97,7 @@ class LifeTime(ABC):
         return output
 
 
-class DR2LifeTime(LifeTime):
+class IceTrackDR2LifeTime(LifeTime):
     def __init__(self):
 
         directory = available_datasets[I3_14]["dir"]

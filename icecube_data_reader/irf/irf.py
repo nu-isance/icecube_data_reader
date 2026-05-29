@@ -37,7 +37,7 @@ class AngularResolution(ABC):
     pass
 
 
-class IceTrackDR2InstrumentResponseFunction(
+class IceTracksDR2InstrumentResponseFunction(
     InstrumentResponseFunction, EnergyResolution, AngularResolution
 ):
 
@@ -360,5 +360,5 @@ class IceTrackDR2InstrumentResponseFunction(
 if __name__ == "__main__":
     from icecube_data_reader.event_types import IC86
 
-    irf = IceTrackDR2InstrumentResponseFunction.load(IC86)
+    irf = IceTracksDR2InstrumentResponseFunction.load(IC86)
     irf.create_IRF()
