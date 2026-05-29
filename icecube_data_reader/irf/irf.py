@@ -43,6 +43,8 @@ class IceTracksDR2InstrumentResponseFunction(
 
     def __init__(self, data: np.ndarray, season: EventType):
         """
+        DO NOT instantiate it via init, but rather through the class method `load`
+
         :param path: Path to smearing matrix
         :type path: Path
         :param season: Detector season
@@ -71,6 +73,12 @@ class IceTracksDR2InstrumentResponseFunction(
         self.ang_err_hists = [[] for _ in self.log_tE_bin_centers]
         self.ang_err_bin_edges = [[] for _ in self.log_tE_bin_centers]
         self.ang_err_sampling = [[] for _ in self.log_tE_bin_centers]
+
+        self.faulty = []
+        for c_e in range(self.log_tE_bin_center.size):
+            reduced = self.data[self.data[:, 0] == self.log_tE_bin_edges[c_e]]
+            if reduced[:, -1].sum() == 0.:
+                self.faulty.append(c_e)
 
     @u.quantity_input
     @profile
