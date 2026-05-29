@@ -7,8 +7,15 @@ from scipy import stats
 import os
 from abc import ABC
 from astropy import units as u
-from icecube_data_reader.downloader import data_directory, I3_14, available_datasets, IceCubeData
+from astropy.time import Time
+from icecube_data_reader.downloader import (
+    data_directory,
+    I3_14,
+    available_datasets,
+    IceCubeData,
+)
 from icecube_data_reader.event_types import IC40, IC59, IC79, IC86, suffixes, EventType
+from typing import TypedDict
 
 import logging
 
@@ -46,7 +53,9 @@ class LifeTime(ABC):
         for s in self._data.keys():
             # Query histograms for fraction of total lifetime in a season
             # multiply by total lifetime in a season to get appropriate value
-            time = (self._dists[s].cdf(mjd_max) - self._dists[s].cdf(mjd_min)) * self._lifetimes[s]
+            time = (
+                self._dists[s].cdf(mjd_max) - self._dists[s].cdf(mjd_min)
+            ) * self._lifetimes[s]
             # set atol to 1e-9 days, so we are below the time resolution of event mjd (1e-8 days)
             if squeeze and np.isclose(time.to_value(u.d), 0.0, atol=1e-9):
                 time = 0 * u.yr
@@ -55,7 +64,9 @@ class LifeTime(ABC):
 
         return output
 
-    def lifetime_from_season(self, *seasons) -> dict[EventType | u.quantity.Quantity[u.yr]]:
+    def lifetime_from_season(
+        self, *seasons
+    ) -> dict[EventType | u.quantity.Quantity[u.yr]]:
         """Compute lifetime of given seasons
 
         :param seasons: Seasons to calculate lifetimes of
@@ -134,3 +145,17 @@ class DR2LifeTime(LifeTime):
             on_off[::2] = 1.0
             # density=True for on_off to be treated as density
             self._dists[s] = stats.rv_histogram((on_off, bins), density=True)
+
+    def draw_event_mjd(
+        self, event_numbers: dict[EventType, int]
+    ) -> dict[EventType, Time]:
+        """Draw event MJDs for scrambling the arrival times of events
+        TODO: add min/max mjd
+
+        :param event_numbers: Dict of event type and requested numbers
+        :type event_numbers: dict[EventType, int]
+        :return: Dictionary of event types and new MJDs
+        :rtype: dict[EventType, Time]
+        """
+
+        raise NotImplementedError()
