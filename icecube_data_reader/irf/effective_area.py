@@ -94,7 +94,7 @@ class IceTrackDR2EffectiveArea(EffectiveArea):
         """
 
         season_string = str(season)
-        file = data_directory / Path(
+        file = data_path / Path(
             available_datasets[I3_14]["dir"]
         ) / Path(
         available_datasets[I3_14]["subdir"]

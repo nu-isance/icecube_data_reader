@@ -164,6 +164,8 @@ class IceTracksDR2InstrumentResponseFunction(
         irf.log_tE_bin_centers = log_tE_bin_centers
         irf.tE_bin_edges = tE_bin_edges
         irf.dec_bin_edges = dec_bin_edges
+        irf.sin_dec_bin_edges = np.sin(np.deg2rad(dec_bin_edges))
+        irf.sin_dec_bin_centers = (irf.sin_dec_bin_edges[:-1] + irf.sin_dec_bin_edges[1:]) / 2
         irf.dec_idx = dec_idx
         irf.dec_min = dec_bin_edges[dec_idx] * u.deg
         irf.dec_max = dec_bin_edges[dec_idx + 1] * u.deg
