@@ -43,11 +43,11 @@ def test_selecting(test_saving):
     mask[idx] = True
 
     e = events.energies[idx].to_value(u.GeV)
-    et = events.int_event_types[idx]
+    et = events.int_types[idx]
     events.select(mask)
 
     assert pytest.approx(events.energies[0].to_value(u.GeV)) == e
-    assert et == events.int_event_types[0]
+    assert et == events.int_types[0]
 
 
 def test_erroneous_selecting(test_saving):
