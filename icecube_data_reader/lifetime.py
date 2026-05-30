@@ -14,8 +14,7 @@ from icecube_data_reader.downloader import (
     available_datasets,
     IceCubeData,
 )
-from icecube_data_reader.event_types import IC40, IC59, IC79, IC86, suffixes, EventType
-from typing import TypedDict
+from icecube_data_reader.event_types import IC40, IC59, IC79, IC86, suffixes, EventType, Refrigerator
 
 import logging
 
@@ -64,34 +63,37 @@ class LifeTime(ABC):
 
         return output
     
-    def mjd_from_season(self, season: EventType) -> tuple[float, float]:
+    def mjd_from_season(self, season: EventType | str) -> tuple[float, float]:
         """Return MJD_min, MJD_max for provided season
 
-        :param season: Event type
-        :type season: EventType
+        :param season: Event type, either the EventType class or str(EventType)
+        :type season: EventType | str
         :return: Tuple of MJD_min, MJD_max
         :rtype: tuple[float, float]
         """
 
         for c, v in enumerate([IC40, IC59, IC79, IC86]):
-            if v == season:
+            if str(v) == str(season):
                 break
 
         return self._times[c, 0], self._times[c, 1]
 
 
     def lifetime_from_season(
-        self, *seasons
+        self, *seasons: EventType | str
     ) -> dict[EventType | u.quantity.Quantity[u.yr]]:
         """Compute lifetime of given seasons
 
-        :param seasons: Seasons to calculate lifetimes of
+        :param seasons: Seasons to calculate lifetimes of, either EventType or str(EventType)
+        :type seasons: EventType | str
         :return: Dictionary with detector season: duration in astropy.units.yr
         :rtype: dict[EventType|u.quantity.Quantity[u.yr]]
         """
 
         output = {}
         for s in seasons:
+            if isinstance(s, str):
+                s = Refrigerator.str2dm(s)
             output[s] = self._lifetimes[s]
 
         return output

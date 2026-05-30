@@ -75,16 +75,16 @@ class Events(ABC):
         return self._unit_vectors
 
     @property
-    def event_types(self):
-        return self._event_types
+    def types(self):
+        return self._types
 
     @property
-    def int_event_types(self):
-        return self._int_event_types
+    def int_types(self):
+        return self._int_types
 
     @property
     def N(self):
-        return self.event_types.size
+        return self.types.size
 
     @u.quantity_input
     def apply_energy_cut(self, Emin: u.GeV, Emax: u.GeV = np.inf * u.GeV):
@@ -127,14 +127,14 @@ class IceTrackDR2Events(Events):
         self,
         energies: u.GeV,
         coords: SkyCoord,
-        event_types: np.ndarray,
+        types: np.ndarray,
         ang_errs: u.deg,
         mjd: Time,
     ):
         self._energies = energies
         self._coords = coords
-        self._event_types = event_types
-        self._int_event_types = np.array([_.S for _ in event_types])
+        self._types = types
+        self._int_types = np.array([_.S for _ in types])
         self._ang_errs = ang_errs
         self._mjd = mjd
         self._coords.representation_type = "cartesian"
@@ -180,8 +180,8 @@ class IceTrackDR2Events(Events):
         self._energies = self._energies[mask]
         self._coords = self._coords[mask]
         self._unit_vectors = self._unit_vectors[mask]
-        self._event_types = self._event_types[mask]
-        self._int_event_types = self._int_event_types[mask]
+        self._types = self._types[mask]
+        self._int_types = self._int_types[mask]
         self._ang_errs = self._ang_errs[mask]
         self._mjd = self._mjd[mask]
 
@@ -222,11 +222,11 @@ class IceTrackDR2Events(Events):
         :rtype: Path
         """
 
-        self._file_keys = ["energies", "unit_vectors", "event_types", "ang_errs", "mjd"]
+        self._file_keys = ["energies", "unit_vectors", "types", "ang_errs", "mjd"]
         self._file_values = [
             self.energies.to(u.GeV).value,
             self.unit_vectors,
-            self.int_event_types,
+            self.int_types,
             self.ang_errs.to(u.deg).value,
             self.mjd.mjd,
         ]
@@ -293,8 +293,8 @@ class IceTrackDR2Events(Events):
 
             energies = events_folder["energies"][()] * u.GeV
             uv = events_folder["unit_vectors"][()]
-            int_event_types = events_folder["event_types"][()]
-            event_types = np.array([Refrigerator.int2dm(_) for _ in int_event_types])
+            int_types = events_folder["types"][()]
+            types = np.array([Refrigerator.int2dm(_) for _ in int_types])
             ang_errs = events_folder["ang_errs"][()] * u.deg
 
             # For backwards compatibility
@@ -308,7 +308,7 @@ class IceTrackDR2Events(Events):
         )
         mjd = Time(mjd, format="mjd")
         coords.representation_type = "spherical"
-        events = cls(energies, coords, event_types, ang_errs, mjd)
+        events = cls(energies, coords, types, ang_errs, mjd)
 
         return events
 
@@ -325,7 +325,7 @@ class IceTrackDR2Events(Events):
         self.select(mask)
 
     @classmethod
-    def from_event_files(cls, *seasons: EventType) -> Self:
+    def from_event_files(cls, *seasons: EventType | str) -> Self:
         """
         Load data of provided seasons.
         If none are provided, use all.
@@ -361,7 +361,7 @@ class IceTrackDR2Events(Events):
         decs = []
         mjd = []
         ang_errs = []
-        event_types = []
+        types = []
 
         def _append_data(s, suffering: str = ""):
             data = np.loadtxt(
@@ -376,9 +376,10 @@ class IceTrackDR2Events(Events):
             ras.append(data[:, cls.ras_])
             decs.append(data[:, cls.decs_])
             ang_errs.append(data[:, cls.ang_errs_])
-            event_types.append(len(data[:, cls.energies_]) * [s])
+            types.append(len(data[:, cls.energies_]) * [s])
 
         for s in seasons:
+            s = Refrigerator.str2dm(s) if isinstance(s, str) else s
             if s == IC86:
                 for suffering in suffixes:
                     _append_data(s, suffering)
@@ -390,10 +391,10 @@ class IceTrackDR2Events(Events):
         ras = np.concatenate(ras) << u.deg
         decs = np.concatenate(decs) << u.deg
         ang_errs = np.concatenate(ang_errs) << u.deg
-        event_types = np.concatenate(event_types)
+        types = np.concatenate(types)
         coords = SkyCoord(ra=ras, dec=decs, frame="icrs")
 
-        events = cls(energies, coords, event_types, ang_errs, mjd)
+        events = cls(energies, coords, types, ang_errs, mjd)
         events._ras = ras
         events._decs = decs
 

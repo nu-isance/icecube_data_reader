@@ -136,4 +136,8 @@ class Refrigerator:
                 return dm
         else:
             raise ValueError(f"No detector {int_} available.")
+        
+    @classmethod
+    def str2dm(cls, str_):
+        return cls.int2dm(cls.str2int(str_))
 

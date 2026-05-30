@@ -46,14 +46,14 @@ class EffectiveArea(ABC):
 
         return self._cosz_bin_edges
     
-    @property
-    def sin_dec_bin_edges(self):
-        """
-        sin(dec) bin edges corresponding to the
-        histogram in eff_area
-        """
-
-        return self._sin_dec_bin_edges    
+    #@property
+    #def sin_dec_bin_edges(self):
+    #    """
+    #    sin(dec) bin edges corresponding to the
+    #    histogram in eff_area
+    #    """
+    #
+    #    return self._sin_dec_bin_edges    
     
     @property
     def tE_bin_edges(self):
@@ -76,10 +76,13 @@ class IceTrackDR2EffectiveArea(EffectiveArea):
             season: EventType,
             ):
         
+        self._season = season
         self._tE_bin_edges = tE_bin_edges
-        self._eff_area = eff_area
-        self._sin_dec_bin_edges = np.sin(dec_bin_edges.to_value(u.rad))
-        self._cosz_bin_edges = - np.sin(dec_bin_edges.to_value(u.rad))
+        # this inverts the order of bins
+        self._cosz_bin_edges = np.sort(- np.sin(dec_bin_edges.to_value(u.rad)))
+        # hence we invert the order of elements along the cosz axis of eff_area
+        self._eff_area = np.flip(eff_area, axis=1)
+        #self._sin_dec_bin_edges = np.sin(dec_bin_edges.to_value(u.rad))
 
     @classmethod
     def load(cls, season: EventType, data_path: Path = data_directory) -> Self:
