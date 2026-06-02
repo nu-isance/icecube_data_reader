@@ -43,6 +43,7 @@ class IceTracksDR2InstrumentResponseFunction(
     InstrumentResponseFunction, EnergyResolution, AngularResolution
 ):
 
+    _STACK = {}
     def __init__(self, data: np.ndarray, season: EventType):
         """
         DO NOT instantiate it via init, but rather through the class method `load`
@@ -61,6 +62,12 @@ class IceTracksDR2InstrumentResponseFunction(
         self.ereco_idx = 4
         self.psf_idx = 6
         self.ang_err_idx = 8
+
+        self._eres = False
+        self._ang_res = False
+
+        if season in self._STACK:
+            self.__dict__ = self.STACK[season].__dict__
 
     def _post_init(self):
         # Break naming convention because r and t are too close on the keyboard
@@ -121,6 +128,8 @@ class IceTracksDR2InstrumentResponseFunction(
     def create_eres(self) -> None:
         """Create energy resolution histograms"""
 
+        if self._eres:
+            return
         for c_tE in range(self.log_tE_bin_centers.size):
             for c_d in range(self.sin_dec_bin_centers.size):
                 print("loop", c_tE, c_d)
@@ -129,12 +138,15 @@ class IceTracksDR2InstrumentResponseFunction(
                 # ) or isinstance(self.recoE_sampling[c_tE][c_d], DummyPDF):
                 #    continue
                 self._create_recoE_distribution(c_tE, c_d)
+        self._eres = True
 
     @u.quantity_input
     @profile
     def create_ang_res(self) -> None:
         """Create angular resolution histograms"""
 
+        if self._ang_res:
+            return
         for c_tE in range(self.log_tE_bin_centers.size):
             for c_d in range(self.sin_dec_bin_centers.size):
                 if not isinstance(self.recoE_sampling[c_tE][c_d], stats.rv_histogram):
@@ -160,14 +172,15 @@ class IceTracksDR2InstrumentResponseFunction(
                     # Create both angular (psf and ang_err) distributions
                     self.create_angular_distributions(c_tE, c_d, c_rE, data=ereco_data)
 
+        self._ang_res = True
+        self._eres = True
+
     @classmethod
     def load(cls, season: EventType) -> Self:
         """Create energy resolution object for provided season
 
         :param season: Season
         :type season: EventType
-        :param dec: Declination
-        :type dec: u.deg
         :return: Energy resolution
         :rtype: :py:class:`IceTrackDR2EnergyResolution`
         """
@@ -225,8 +238,10 @@ class IceTracksDR2InstrumentResponseFunction(
         :type Etrue: u.GeV
         :param seed: Random seed, defaults to 42
         :type seed: int, optional
-        :return: _description_
-        :rtype: _type_
+        :param N: Number of events to sample if coord and Etrue are single values, defaults to 1
+        :type N: int, optional
+        :return: Array of reconstructed energies
+        :rtype: np.ndarray
         """
 
         if Etrue.shape == () and N > 1:
@@ -272,12 +287,16 @@ class IceTracksDR2InstrumentResponseFunction(
 
         :param c_e: Index of true energy bin
         :type c_e: int
+        :param c_d: Index of declination bin
+        :type c_d: int
+        :param return_data: Set to true if the relevant entries of the smearing matrix
+        are to be returned additionally, defaults to False
         :param data: Relevant entries (i.e. for true energy, declination)
         of the smearing matrix, defaults to None
         :type return_data: bool, optional
         :return: Tuple of fractional counts per bin and bin edges, optional relevant entries
         of smearing matrix
-        :rtype: tuple[np.ndarray, np.ndarray]
+        :rtype: tuple[np.ndarray, ...]
         """
 
         print("create eres", c_e, c_d)
@@ -382,8 +401,8 @@ class IceTracksDR2InstrumentResponseFunction(
             frac_counts[c_b] = np.sum(
                 reduced_data[b == reduced_data[:, self.psf_idx], -1]
             )
-            # psf_reduced_data = reduced_data[reduced_data[:, self.psf_idx] == b]
-            # self._create_ang_err_distribution(c_e, c_d, c_rE, c_b, psf_reduced_data)
+            psf_reduced_data = reduced_data[reduced_data[:, self.psf_idx] == b]
+            self._create_ang_err_distribution(c_e, c_d, c_rE, c_b, psf_reduced_data)
 
         # hist = stats.rv_histogram((frac_counts, bins), density=False)
         # self.psf_sampling[c_e][c_d][c_rE] = hist
@@ -409,6 +428,8 @@ class IceTracksDR2InstrumentResponseFunction(
 
         :param c_e: Index of true energy
         :type c_e: int
+        :param c_d: Index of declination bin
+        :type c_d: int
         :param c_rE: Index of reconstructed energy
         :type c_rE: int
         :param c_psf: Index of kinematic angle/PSF

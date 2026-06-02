@@ -321,7 +321,7 @@ class IceTrackDR2Events(Events):
         :param Emax: Maximum allowed energy, defaults to np.inf*u.GeV
         :type Emax: u.GeV, optional
         """
-        mask = (self.energy >= Emin) & (self.energy <= Emax)
+        mask = (self.energies >= Emin) & (self.energies <= Emax)
         self.select(mask)
 
     @classmethod

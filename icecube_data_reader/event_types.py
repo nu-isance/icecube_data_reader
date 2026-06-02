@@ -86,28 +86,6 @@ class Refrigerator:
     
     detectors = [IC40, IC59, IC79, IC86, IC86_I, IC86_II]
 
-    '''
-    @classmethod
-    def python2dm(cls, python):
-        """Returns EventType corresponding to python event-type string"""
-
-        for dm in cls.detectors:
-            if dm.P == python:
-                return dm
-        else:
-            raise ValueError(f"No detector {python} available.")
-    '''
-    '''
-    @classmethod
-    def stan2dm(cls, stan):
-        """Returns EventType corresponding to stan event-type"""
-
-        for dm in cls.detectors:
-            if dm.S == stan:
-                return dm
-        else:
-            raise ValueError(f"No detector {stan} available.")
-    '''
     @classmethod
     def int2str(cls, int_):
         """Returns python event-type string corresponding to integer event-type"""
