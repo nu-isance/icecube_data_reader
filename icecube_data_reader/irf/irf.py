@@ -358,7 +358,6 @@ class IceTracksDR2InstrumentResponseFunction(
 
         for idx_e in set_e:
             _index_e = np.atleast_1d(np.argwhere(idx_e == tE_idx).squeeze())
-            print(_index_e)
             reco_idxs = np.digitize(recoE[_index_e], self.recoE_bin_edges[idx_e, c_d]) - 1
             set_rE = np.unique(reco_idxs)
             for idx_rE in set_rE:
@@ -367,13 +366,38 @@ class IceTracksDR2InstrumentResponseFunction(
                     density=True
                 )
                 _index_rE = np.atleast_1d(np.argwhere(idx_rE == reco_idxs).squeeze())
-                #print(_index_rE)
                 rvs = random.rvs(size = _index_rE.size)
-                #print(rvs)
-                ang_errs_out[_index_e[_index_rE]] = rvs
-                #print(idx_e, idx_rE)
+                ang_errs_out[_index_e[_index_rE]] = np.deg2rad(np.power(10, rvs))
+
+
+        deflection_angles = stats.rayleigh.rvs(scale=ang_errs_out)
+        # Deflecte like we do in stan: sample rotation axis orthonormal to the event
+        # sample angle `theta` by which we rotate from Rayleigh dist with sampled ang_err as its sigma
+        # rotate the initial direction/coord by `theta` around rotation axis
+
 
         return ang_errs_out
+    
+    def _sample_orthonormal(self, x: np.ndarray) -> np.ndarray:
+        """Sample a vector that is orthonormal to the input
+
+        :param x: Input array
+        :type x: np.ndarray
+        :return: Vector orthonormal to input
+        :rtype: np.ndarray
+        """        
+        v = stats.norm().rvs(size=3)
+        projected = x * np.dot(x, v) / np.linalg.norm(x)
+        ortho = v - projected
+        orthonormal = ortho / np.linalg.norm(ortho)
+        return orthonormal
+    
+    def _rotate_around_vector(self, rotatee: np.ndarray, axis: np.ndarray, theta: u.rad) -> np.ndarray:
+        """Rotate a vector around a second vector by an angle
+        """
+
+        theta = theta.to_value(u.rad)
+        return axis * np.dot(rotatee, axis) + np.cos(theta) * np.cross(np.cross(axis, rotatee), axis) + np.sin(theta) * np.cross(axis, rotatee)
 
     def _sample_energy(
             self,
