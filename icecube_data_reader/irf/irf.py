@@ -299,12 +299,6 @@ class IceTracksDR2InstrumentResponseFunction(
 
         # use log binning for angular quantities
         data[:, 6:-1] = np.log10(data[:, 6:-1])
-
-        # dec_idx = np.digitize(dec.to_value(u.deg), dec_bin_edges) - 1
-        # data = data[data[:, 2] == dec_bin_edges[dec_idx]]
-        # Remove declination bc we only use one declination bin
-        # mask = [True, True, False, False, True, True, True, True, True, True, True]
-        # data = data[:, mask]
         irf = cls(data, season)
         irf.log_tE_bin_edges = log_tE_bin_edges
         irf.log_tE_bin_centers = log_tE_bin_centers
@@ -314,9 +308,6 @@ class IceTracksDR2InstrumentResponseFunction(
         irf.sin_dec_bin_centers = (
             irf.sin_dec_bin_edges[:-1] + irf.sin_dec_bin_edges[1:]
         ) / 2
-        # irf.dec_idx = dec_idx
-        # irf.dec_min = dec_bin_edges[dec_idx] * u.deg
-        # irf.dec_max = dec_bin_edges[dec_idx + 1] * u.deg
 
         irf._post_init()
 
@@ -432,132 +423,6 @@ class IceTracksDR2InstrumentResponseFunction(
         if return_data:
             return frac_counts, bins, reduced_data
         return frac_counts, bins
-
-    @profile
-    def create_angular_distributions(
-        self,
-        c_e: int,
-        c_d: int,
-        c_rE: int,
-        data: None | np.ndarray = None,
-        return_data: bool = False,
-    ) -> tuple[np.ndarray, ...]:
-        """Creates PSF distribution for provided indices of preceeding histograms
-        by marginalising over the angular error.
-
-        :param c_e: Index of true energy bin
-        :type c_e: int
-        :param c_rE: Index of reconstructed energy bin
-        :type c_rE: int
-        :param data: Relevant entries (i.e. for true energy, declination)
-        of the smearing matrix, defaults to None
-        :type data: None | np.ndarray, optional
-        :return: Tuple of fractional counts ber bin and bin edges, optional relevant data
-        of smearing matrix
-        :rtype: tuple[np.ndarray, ...]
-        """
-
-        raise NotImplementedError()
-        if data is None:
-            # Get entries at relevant true energy and declination
-            reduced_data = self.data[
-                self.data[:, self.etrue_idx] == self.log_tE_bin_edges[c_e]
-            ]
-            reduced_data = reduced_data[
-                reduced_data[:, self.dec_idx] == self.dec_bin_edges[c_d]
-            ]
-
-        else:
-            reduced_data = data
-
-        # Get entries at relevant reco energy
-        reduced_data = reduced_data[
-            reduced_data[:, self.ereco_idx] == self.recoE_bin_edges[c_e][c_d][c_rE]
-        ]
-
-        # Create bin edges of kinematic angle / PSF
-        bins = np.sort(
-            np.unique(reduced_data[:, self.psf_idx : self.psf_idx + 2].flatten())
-        )
-
-        if bins.size == 0:
-            # Happens for Ereco bins with frac_counts = 0
-            # create empty histograms for this specific chain of
-            # psf and ang_err
-            # self.psf_bin_edges[c_e][c_d][c_rE] = np.arange(21)
-            # self.psf_hists[c_e][c_d][c_rE] = np.zeros(20)
-            # self.ang_err_sampling[c_e][c_d][c_rE] = [DummyPDF()] * 20
-            # self.ang_err_hists[c_e][c_d][c_rE] = [np.zeros(20)] * 20
-            # self.ang_err_bin_edges[c_e][c_d][c_rE] = [np.zeros(21)] * 20
-            return reduced_data
-
-        frac_counts = np.zeros(bins.size - 1)
-        self.psf_bin_edges[c_e][c_d][c_rE] = bins
-        self.ang_err_sampling[c_e][c_d][c_rE] = [None] * (bins.size - 1)
-        self.ang_err_hists[c_e][c_d][c_rE] = [None] * (bins.size - 1)
-        self.ang_err_bin_edges[c_e][c_d][c_rE] = [None] * (bins.size - 1)
-        # Calculate fractional count in each PSF bin by marginalising over ang_err
-        for c_b, b in enumerate(bins[:-1]):
-            frac_counts[c_b] = np.sum(
-                reduced_data[b == reduced_data[:, self.psf_idx], -1]
-            )
-            psf_reduced_data = reduced_data[reduced_data[:, self.psf_idx] == b]
-            self._create_ang_err_distribution(c_e, c_d, c_rE, c_b, psf_reduced_data)
-
-        # hist = stats.rv_histogram((frac_counts, bins), density=False)
-        # self.psf_sampling[c_e][c_d][c_rE] = hist
-        summed = frac_counts.sum()
-        self.psf_hists[c_e][c_d][c_rE] = frac_counts / summed
-        if return_data:
-            return frac_counts, bins, reduced_data
-        return frac_counts, bins
-
-    @profile
-    def _create_ang_err_distribution(
-        self,
-        c_e: int,
-        c_d: int,
-        c_rE: int,
-        c_psf: int,
-        reduced_data: np.ndarray,
-    ) -> tuple[np.ndarray, ...]:
-        """Create angular error distribution for provided true energy,
-        reco energy and kinematic angle indices.
-
-        :param c_e: Index of true energy
-        :type c_e: int
-        :param c_d: Index of declination bin
-        :type c_d: int
-        :param c_rE: Index of reconstructed energy
-        :type c_rE: int
-        :param c_psf: Index of kinematic angle/PSF
-        :type c_psf: int
-        :param reduced_data: Relevant entries of the smearing matrix
-        :type reduced_data: np.ndarray
-        :return: _description_
-        :rtype: tuple[np.ndarray, ...]
-        """
-
-        raise NotImplementedError()
-        # Reduced data by etrue, dec, ereco, psf
-        bins = np.sort(
-            np.unique(
-                reduced_data[:, self.ang_err_idx : self.ang_err_idx + 2].flatten()
-            )
-        )
-
-        self.ang_err_bin_edges[c_e][c_d][c_rE][c_psf] = bins
-
-        frac_counts = np.zeros(bins.size - 1)
-        for c_b, b in enumerate(bins[:-1]):
-            frac_counts[c_b] = np.sum(
-                reduced_data[b == reduced_data[:, self.ang_err_idx], -1]
-            )
-        # hist = stats.rv_histogram((frac_counts, bins), density=False)
-        # self.ang_err_sampling[c_e][c_d][c_rE][c_psf] = hist
-        summed = frac_counts.sum()
-        self.ang_err_hists[c_e][c_d][c_rE][c_psf] = frac_counts / summed
-
 
 if __name__ == "__main__":
     from icecube_data_reader.event_types import IC86
