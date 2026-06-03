@@ -125,10 +125,26 @@ class IceTracksDR2InstrumentResponseFunction(
 
     @u.quantity_input
     @profile
-    def create_IRF(self) -> None:
-        """Create entire chain of IRF distributions at provided declination."""
+    def create_IRF(
+        self,
+        dec: u.Quantity[u.deg] | None = None,
+        dec_range: tuple[u.Quantity[u.deg], u.Quantity[u.deg]] = (-90. * u.deg, 90. * u.deg),
+        show_progress: bool = True
+    ) -> None:
+        """Create the entire IRF, i.e. energy and angular resolution.
 
-        self.create_ang_res()
+        Selection by declination or declination range is possible. A single value of `dec` takes precedent
+        over a provided range.
+
+        :param dec: Declination, defaults to None
+        :type dec: u.Quantity[u.deg] | None, optional
+        :param dec_range: Declination range, defaults to (-90. * u.deg, 90. * u.deg)
+        :type dec_range: tuple[u.Quantity[u.deg], u.Quantity[u.deg]], optional
+        :param show_progress: Display progress bar, defaults to True
+        :type show_progress: bool, optional
+        """
+
+        self.create_ang_res(dec, dec_range, show_progress)
 
     @u.quantity_input
     @profile
@@ -138,7 +154,18 @@ class IceTracksDR2InstrumentResponseFunction(
         dec_range: tuple[u.Quantity[u.deg], u.Quantity[u.deg]] = (-90. * u.deg, 90. * u.deg),
         show_progress: bool = True
     ) -> None:
-        """Create energy resolution histograms"""
+        """Create the energy resolution.
+
+        Selection by declination or declination range is possible. A single value of `dec` takes precedent
+        over a provided range.
+
+        :param dec: Declination, defaults to None
+        :type dec: u.Quantity[u.deg] | None, optional
+        :param dec_range: Declination range, defaults to (-90. * u.deg, 90. * u.deg)
+        :type dec_range: tuple[u.Quantity[u.deg], u.Quantity[u.deg]], optional
+        :param show_progress: Display progress bar, defaults to True
+        :type show_progress: bool, optional
+        """       
 
         if dec is not None:
             dec_idx = np.digitize(dec.to_value(u.deg), self.dec_bin_edges) - 1
@@ -173,7 +200,25 @@ class IceTracksDR2InstrumentResponseFunction(
         dec_range: tuple[u.Quantity[u.deg], u.Quantity[u.deg]] = (-90. * u.deg, 90. * u.deg),
         show_progress: bool = True
     ) -> None:
-        """Create angular resolution histograms"""
+        """Create angular resolution distributions.
+        The intermediate step of kinematic angle / PSF is irrelevant,
+        as it is not an observable. We skip this explicit simulation step by marginalising over it.
+        For each Etrue, DEC pair, the binning of ang_err is fixed. Hence we collect the
+        ang_err_bin_edges and find the fractional counts only for specific values of reconstructed energy.
+        If the required energy resolution has not been created, it will be done automatically.
+
+        Selection by declination or declination range is possible. A single value of `dec` takes precedent
+        over a provided range.
+
+        :param dec: Declination, defaults to None
+        :type dec: u.Quantity[u.deg] | None, optional
+        :param dec_range: Declination range, defaults to (-90. * u.deg, 90. * u.deg)
+        :type dec_range: tuple[u.Quantity[u.deg], u.Quantity[u.deg]], optional
+        :param show_progress: Display progress bar, defaults to True
+        :type show_progress: bool, optional
+        :raises AssertionError: If not all ang_err_bin_edges within one pair of Etrue and DEC
+        are the same, an AssertionError is raised
+        """        
 
         if dec is not None:
             dec_idx = np.digitize(dec.to_value(u.deg), self.dec_bin_edges) - 1
