@@ -14,15 +14,13 @@ from tqdm.notebook import tqdm
 from icecube_data_reader.downloader import available_datasets, data_directory, I3_14
 from icecube_data_reader.event_types import EventType
 from icecube_data_reader.utils.utils import DummyPDF
+from icecube_data_reader.events import Events
 from itertools import product
 
 import logging
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-
-from line_profiler import profile
 
 
 class InstrumentResponseFunction(ABC):
@@ -124,7 +122,6 @@ class IceTracksDR2InstrumentResponseFunction(
                     self.faulty.append((c_e, c_d))
 
     @u.quantity_input
-    @profile
     def create_IRF(
         self,
         dec: u.Quantity[u.deg] | None = None,
@@ -147,7 +144,6 @@ class IceTracksDR2InstrumentResponseFunction(
         self.create_ang_res(dec, dec_range, show_progress)
 
     @u.quantity_input
-    @profile
     def create_eres(
         self,
         dec: u.Quantity[u.deg] | None = None,
@@ -194,7 +190,6 @@ class IceTracksDR2InstrumentResponseFunction(
             self._create_recoE_distribution(c_tE, c_d)
 
     @u.quantity_input
-    @profile
     def create_ang_res(self,
         dec: u.Quantity[u.deg] | None = None,
         dec_range: tuple[u.Quantity[u.deg], u.Quantity[u.deg]] = (-90. * u.deg, 90. * u.deg),
@@ -314,8 +309,14 @@ class IceTracksDR2InstrumentResponseFunction(
         return irf
 
     @u.quantity_input
-    def sample_energy(self, coord: SkyCoord, Etrue: u.GeV, seed: int = 42, N: int = 1):
-        """Simulate events
+    def sample_energy(
+        self,
+        coord: SkyCoord,
+        Etrue: u.GeV,
+        seed: int = 42,
+        N: int = 1,
+        ) -> tuple[np.ndarray, int, np.ndarray]:
+        """Sample reco energy
 
         :param coord: Source coordinate,
         assumes only one coordinate per function call
@@ -330,17 +331,81 @@ class IceTracksDR2InstrumentResponseFunction(
         :rtype: np.ndarray
         """
 
+        return self._sample_energy(coord, Etrue, seed, N)
+    
+    @u.quantity_input
+    def sample(self, coord: SkyCoord, Etrue: u.GeV, seed: int = 42, N: int = 1) -> Events:
+        """Sample reco energy
+
+        :param coord: Source coordinate,
+        assumes only one coordinate per function call
+        :type coord: SkyCoord
+        :param Etrue: True neutrino energy
+        :type Etrue: u.GeV
+        :param seed: Random seed, defaults to 42
+        :type seed: int, optional
+        :param N: Number of events to sample if coord and Etrue are single values, defaults to 1
+        :type N: int, optional
+        :return: 
+        :rtype: np.ndarray
+        """
+
+        tE_idx, c_d, recoE = self._sample_energy(coord, Etrue, seed, N)
+        set_e = np.unique(tE_idx)
+
+        recoE = np.atleast_1d(recoE)
+        ang_errs_out = np.zeros(recoE.size)
+
+        for idx_e in set_e:
+            _index_e = np.atleast_1d(np.argwhere(idx_e == tE_idx).squeeze())
+            print(_index_e)
+            reco_idxs = np.digitize(recoE[_index_e], self.recoE_bin_edges[idx_e, c_d]) - 1
+            set_rE = np.unique(reco_idxs)
+            for idx_rE in set_rE:
+                random = stats.rv_histogram(
+                    (self.ang_err_hists[idx_e, c_d, idx_rE], self.ang_err_bin_edges[idx_e, c_d]),
+                    density=True
+                )
+                _index_rE = np.atleast_1d(np.argwhere(idx_rE == reco_idxs).squeeze())
+                #print(_index_rE)
+                rvs = random.rvs(size = _index_rE.size)
+                #print(rvs)
+                ang_errs_out[_index_e[_index_rE]] = rvs
+                #print(idx_e, idx_rE)
+
+        return ang_errs_out
+
+    def _sample_energy(
+            self,
+            coord: SkyCoord,
+            Etrue: u.GeV,
+            seed: int = 42,
+            N: int = 1
+        ) -> tuple[np.ndarray, int, np.ndarray]:
+        """Sample reco energy of events
+
+        :param coord: Source coordinate,
+        assumes only one coordinate per function call
+        :type coord: SkyCoord
+        :param Etrue: True neutrino energy
+        :type Etrue: u.GeV
+        :param seed: Random seed, defaults to 42
+        :type seed: int, optional
+        :param N: Number of events to sample if coord and Etrue are single values, defaults to 1
+        :type N: int, optional
+        :return: Etrue indices, declination index, array of reconstructed energies
+        :rtype: tuple[np.ndarray, int, np.ndarray]
+        """
+
         if Etrue.shape == () and N > 1:
             Etrue = np.full(N, Etrue.to_value(u.GeV))
         else:
             Etrue = np.atleast_1d(Etrue.to_value(u.GeV))
         coord.representation_type = "spherical"
-        ra = coord.ra
         dec = coord.dec
         c_d = np.digitize(dec.deg, self.dec_bin_edges) - 1
 
         coord.representation_type = "cartesian"
-        unit_vector = np.array([coord.x, coord.y, coord.z])
         coord.representation_type = "spherical"
 
         log_tE = np.log10(Etrue)
@@ -350,17 +415,16 @@ class IceTracksDR2InstrumentResponseFunction(
 
         set_e = np.unique(tE_idx)
         for idx_e in set_e:
-            _index_e = np.argwhere(idx_e == tE_idx).squeeze()
+            _index_e = np.atleast_1d(np.argwhere(idx_e == tE_idx).squeeze())
             recoE = self.recoE_sampling[idx_e][c_d].rvs(
                 size=_index_e.size, random_state=seed
             )
             recoE_out[_index_e] = recoE
 
         if recoE_out.size == 1:
-            return recoE_out[0]
-        return recoE_out
+            return tE_idx, c_d, recoE_out[0]
+        return tE_idx, c_d, recoE_out
 
-    @profile
     def _create_recoE_distribution(
         self,
         c_e: int,
