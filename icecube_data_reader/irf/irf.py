@@ -261,20 +261,14 @@ class IceTracksDR2InstrumentResponseFunction(
                 ang_err_counts = np.zeros(all_ang_err_bins[c_rE].size - 1)
                 for c_ar, ar in enumerate(all_ang_err_bins[c_rE][:-1]):
                     ang_err_counts[c_ar] = red_data[red_data[:, self.ang_err_idx] == ar, -1].sum()
-                self.ang_err_hists[c_tE, c_d, c_rE] = ang_err_counts.copy()
+                hist = ang_err_counts.copy()
+                self.ang_err_hists[c_tE, c_d, c_rE] = hist / (hist * np.diff(all_ang_err_bins[c_rE])).sum()
             for low, high in pairwise(all_ang_err_bins):
                 if not np.all(low == high):
                     # Has been tested in a notebook, should be fine!
                     raise AssertionError("Not all ang_err bins are the same! Investigate manually and fix me.")
             
-            self.ang_err_bin_edges[c_tE, c_d] = all_ang_err_bins[0].copy()
-            
-
-
-            
-
-
-        
+            self.ang_err_bin_edges[c_tE, c_d] = all_ang_err_bins[0].copy()        
 
     @classmethod
     def load(cls, season: EventType) -> Self:
@@ -432,8 +426,8 @@ class IceTracksDR2InstrumentResponseFunction(
             (frac_counts, bins), density=False
         )
         self.recoE_bin_edges[c_e][c_d] = bins
-        summed = frac_counts.sum()
-        self.recoE_hists[c_e][c_d] = frac_counts / summed
+        # summed = frac_counts.sum()
+        self.recoE_hists[c_e][c_d] = frac_counts / (frac_counts * np.diff(bins)).sum()
 
         if return_data:
             return frac_counts, bins, reduced_data
@@ -463,6 +457,7 @@ class IceTracksDR2InstrumentResponseFunction(
         :rtype: tuple[np.ndarray, ...]
         """
 
+        raise NotImplementedError()
         if data is None:
             # Get entries at relevant true energy and declination
             reduced_data = self.data[
@@ -543,6 +538,7 @@ class IceTracksDR2InstrumentResponseFunction(
         :rtype: tuple[np.ndarray, ...]
         """
 
+        raise NotImplementedError()
         # Reduced data by etrue, dec, ereco, psf
         bins = np.sort(
             np.unique(
