@@ -148,13 +148,18 @@ class IceTracksDR2InstrumentResponseFunction(
             dec_min, dec_max = dec_range
             dec_min_idx = np.digitize(dec_min.to_value(u.deg), self.dec_bin_edges) - 1
             dec_max_idx = np.digitize(dec_max.to_value(u.deg), self.dec_bin_edges) - 1
-            print(dec_min_idx, dec_max_idx)
             dec_idx = (dec_min_idx, dec_max_idx)
             dec_range = range(dec_min_idx, dec_max_idx)
             dec_size = dec_max_idx - dec_min_idx
-            print(dec_size)
 
-        for c_d, c_tE in tqdm(product(dec_range, range(self.log_tE_bin_centers.size)), disable=not show_progress, desc="Energy resolution", total=self.log_tE_bin_centers.size * dec_size):
+        for c_d, c_tE in tqdm(
+            product(
+                dec_range, range(self.log_tE_bin_centers.size)
+            ), 
+            disable=not show_progress,
+            desc="Energy resolution",
+            total=self.log_tE_bin_centers.size * dec_size
+        ):
             if isinstance(
                 self.recoE_sampling[c_tE][c_d], stats.rv_histogram
             ) or isinstance(self.recoE_sampling[c_tE][c_d], DummyPDF):
@@ -163,38 +168,68 @@ class IceTracksDR2InstrumentResponseFunction(
 
     @u.quantity_input
     @profile
-    def create_ang_res(self) -> None:
+    def create_ang_res(self,
+        dec: u.Quantity[u.deg] | None = None,
+        dec_range: tuple[u.Quantity[u.deg], u.Quantity[u.deg]] = (-90. * u.deg, 90. * u.deg),
+        show_progress: bool = True
+    ) -> None:
         """Create angular resolution histograms"""
 
-        if self._ang_res:
-            return
-        for c_tE in range(self.log_tE_bin_centers.size):
-            for c_d in range(self.sin_dec_bin_centers.size):
-                if not isinstance(self.recoE_sampling[c_tE][c_d], stats.rv_histogram):
-                    frac_counts, bins, ereco_data = self._create_recoE_distribution(
-                        c_tE, c_d, return_data=True
-                    )
-                    self.recoE_sampling[c_tE][c_d] = stats.rv_histogram(
-                        (frac_counts, bins), density=False
-                    )
-                    self.recoE_bin_edges[c_tE][c_d] = bins
-                else:
-                    ereco_data = None
-                    bins = self.recoE_bin_edges[c_tE][c_d]
-                # bins is reco energy, each bin is mapped to a PSF distribution
-                self.psf_hists[c_tE][c_d] = [[] for _ in range(bins.size)]
-                self.psf_bin_edges[c_tE][c_d] = [[] for _ in range(bins.size)]
-                self.psf_sampling[c_tE][c_d] = [[] for _ in range(bins.size)]
+        if dec is not None:
+            dec_idx = np.digitize(dec.to_value(u.deg), self.dec_bin_edges) - 1
+            dec_range = range(dec_idx, dec_idx + 1)
+            dec_size = 1
+        else:
+            dec_min, dec_max = dec_range
+            dec_min_idx = np.digitize(dec_min.to_value(u.deg), self.dec_bin_edges) - 1
+            dec_max_idx = np.digitize(dec_max.to_value(u.deg), self.dec_bin_edges) - 1
+            dec_idx = (dec_min_idx, dec_max_idx)
+            dec_range = range(dec_min_idx, dec_max_idx)
+            dec_size = dec_max_idx - dec_min_idx
 
-                self.ang_err_hists[c_tE][c_d] = [[] for _ in range(bins.size)]
-                self.ang_err_bin_edges[c_tE][c_d] = [[] for _ in range(bins.size)]
-                self.ang_err_sampling[c_tE][c_d] = [[] for _ in range(bins.size)]
-                for c_rE in range(bins.size - 1):
-                    # Create both angular (psf and ang_err) distributions
-                    self.create_angular_distributions(c_tE, c_d, c_rE, data=ereco_data)
+        self.ang_err_bin_edges = np.zeros(
+            (self.log_tE_bin_centers.size, self.sin_dec_bin_centers.size, 21),
+        )
+        self.ang_err_hists = np.zeros(
+            (self.log_tE_bin_centers.size, self.sin_dec_bin_centers.size, 20, 20),
+        )
+        for c_d, c_tE in tqdm(
+            product(
+                dec_range, range(self.log_tE_bin_centers.size)
+            ), 
+            disable=not show_progress,
+            desc="Angular resolution",
+            total=self.log_tE_bin_centers.size * dec_size
+        ):
+            if isinstance(
+                self.recoE_sampling[c_tE][c_d], stats.rv_histogram
+            ) or isinstance(self.recoE_sampling[c_tE][c_d], DummyPDF):
+                etrue_data = self.data[self.data[:, self.etrue_idx] == self.log_tE_bin_edges[c_tE]]
+                data = etrue_data[etrue_data[:, self.dec_idx] == self.dec_bin_edges[c_d]]
+            _, _, data = self._create_recoE_distribution(c_tE, c_d, return_data=True)
 
-        self._ang_res = True
-        self._eres = True
+            all_ang_err_bins = np.empty((self.recoE_bin_edges[c_tE, c_d].size - 1,), dtype=np.ndarray)
+            for c_rE, rE in enumerate(self.recoE_bin_edges[c_tE, c_d][:-1]):
+                # self.ang_err_hists[c_tE, c_d] = np.empty((self.recoE_hists[c_tE, c_d].size), dtype=np.ndarray)
+                red_data = data[data[:, self.ereco_idx] == rE]
+                all_ang_err_bins[c_rE] = np.unique(red_data[:, self.ang_err_idx:self.ang_err_idx+2].flatten())
+                ang_err_counts = np.zeros(all_ang_err_bins[c_rE].size - 1)
+                for c_ar, ar in enumerate(all_ang_err_bins[c_rE][:-1]):
+                    ang_err_counts[c_ar] = red_data[red_data[:, self.ang_err_idx] == ar, -1].sum()
+                self.ang_err_hists[c_tE, c_d, c_rE] = ang_err_counts.copy()
+            for low, high in pairwise(all_ang_err_bins):
+                if not np.all(low == high):
+                    # Has been tested in a notebook, should be fine!
+                    raise AssertionError("Not all ang_err bins are the same! Investigate manually and fix me.")
+            
+            self.ang_err_bin_edges[c_tE, c_d] = all_ang_err_bins[0].copy()
+            
+
+
+            
+
+
+        
 
     @classmethod
     def load(cls, season: EventType) -> Self:
@@ -320,6 +355,13 @@ class IceTracksDR2InstrumentResponseFunction(
         :rtype: tuple[np.ndarray, ...]
         """
 
+        if (c_e, c_d) in self.faulty:
+            self.recoE_bin_edges[c_e, c_d] = np.arange(21)
+            self.recoE_hists[c_e, c_d] = np.zeros(20)
+            self.recoE_sampling[c_e, c_d] = DummyPDF()
+            if return_data:
+                return None, None, None
+            return None, None
         # Get entries at relevant true energy and declination
         reduced_data = self.data[
             self.data[:, self.etrue_idx] == self.log_tE_bin_edges[c_e]
