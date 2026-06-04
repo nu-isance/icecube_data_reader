@@ -370,10 +370,18 @@ class IceTracksDR2InstrumentResponseFunction(
                 ang_errs_out[_index_e[_index_rE]] = np.deg2rad(np.power(10, rvs))
 
 
-        deflection_angles = stats.rayleigh.rvs(scale=ang_errs_out)
+        deflection_angles = stats.rayleigh.rvs(scale=ang_errs_out) * u.rad
         # Deflecte like we do in stan: sample rotation axis orthonormal to the event
         # sample angle `theta` by which we rotate from Rayleigh dist with sampled ang_err as its sigma
         # rotate the initial direction/coord by `theta` around rotation axis
+
+        coord.representation_type = "cartesian"
+        direction = np.array([coord.x, coord.y, coord.z])
+
+        rot_axis = self._sample_orthonormal(direction)
+        rotated = self._rotate_around_vector(direction, rot_axis, angle)
+
+
 
 
         return ang_errs_out
@@ -386,12 +394,13 @@ class IceTracksDR2InstrumentResponseFunction(
         :return: Vector orthonormal to input
         :rtype: np.ndarray
         """        
-        v = stats.norm().rvs(size=3)
-        projected = x * np.dot(x, v) / np.linalg.norm(x)
+        v = stats.norm().rvs(size=x.shape)
+        projected = x * np.vecdot(x, v) / np.linalg.norm(x)
         ortho = v - projected
         orthonormal = ortho / np.linalg.norm(ortho)
         return orthonormal
     
+    @u.quantity_input
     def _rotate_around_vector(self, rotatee: np.ndarray, axis: np.ndarray, theta: u.rad) -> np.ndarray:
         """Rotate a vector around a second vector by an angle
         """
