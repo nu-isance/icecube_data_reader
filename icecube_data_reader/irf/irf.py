@@ -49,7 +49,7 @@ class IceTracksDR2InstrumentResponseFunction(
         self,
         data: np.ndarray,
         season: EventType,
-        random_state: np.random.Generator = np.default_rng(seed=42),
+        random_state: np.random.Generator = np.random.default_rng(seed=42),
     ):
         """
         DO NOT instantiate it via init, but rather through the class method `load`
@@ -410,13 +410,13 @@ class IceTracksDR2InstrumentResponseFunction(
                     density=True,
                 )
                 _index_rE = np.atleast_1d(np.argwhere(idx_rE == reco_idxs).squeeze())
-                rvs = random.rvs(size=_index_rE.size, random_state=self._random)
+                rvs = random.rvs(size=_index_rE.size, random_state=self.random)
                 # we sample log10(angle/deg), need the angle in rad
                 # for sampling from the Rayleigh distribution
                 ang_errs_out[_index_e[_index_rE]] = np.deg2rad(np.power(10, rvs))
 
         deflection_angles = np.atleast_1d(
-            stats.rayleigh.rvs(scale=ang_errs_out, random_state=self._random) * u.rad
+            stats.rayleigh.rvs(scale=ang_errs_out, random_state=self.random) * u.rad
         )
         ang_errs_out = (ang_errs_out * u.rad).to(u.deg)
         # Deflecte like we do in stan: sample rotation axis orthonormal to the event
@@ -457,7 +457,7 @@ class IceTracksDR2InstrumentResponseFunction(
         :return: Vector orthonormal to input
         :rtype: np.ndarray
         """
-        v = stats.norm().rvs(size=x.shape, random_state=self._random)
+        v = stats.norm().rvs(size=x.shape, random_state=self.random)
         projected = x * np.dot(x, v) / np.linalg.norm(x)
         ortho = v - projected
         orthonormal = ortho / np.linalg.norm(ortho)
@@ -512,7 +512,7 @@ class IceTracksDR2InstrumentResponseFunction(
         for idx_e in set_e:
             _index_e = np.atleast_1d(np.argwhere(idx_e == tE_idx).squeeze())
             recoE = self.recoE_sampling[idx_e][c_d].rvs(
-                size=_index_e.size, random_state=self._random
+                size=_index_e.size, random_state=self.random
             )
             recoE_out[_index_e] = recoE
 
