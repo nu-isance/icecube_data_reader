@@ -25,6 +25,7 @@ dependencies = [
     "tqdm",
     "requests",
     "requests_cache",
+    "ipywidgets",
 ]
 
 [project.optional-dependencies]
