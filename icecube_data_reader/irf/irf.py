@@ -582,10 +582,3 @@ class IceTracksDR2InstrumentResponseFunction(
         if return_data:
             return frac_counts, bins, reduced_data
         return frac_counts, bins
-
-
-if __name__ == "__main__":
-    from icecube_data_reader.event_types import IC86
-
-    irf = IceTracksDR2InstrumentResponseFunction.load(IC86)
-    irf.create_IRF()

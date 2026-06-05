@@ -14,7 +14,15 @@ from icecube_data_reader.downloader import (
     available_datasets,
     IceCubeData,
 )
-from icecube_data_reader.event_types import IC40, IC59, IC79, IC86, suffixes, EventType, Refrigerator
+from icecube_data_reader.event_types import (
+    IC40,
+    IC59,
+    IC79,
+    IC86,
+    suffixes,
+    EventType,
+    Refrigerator,
+)
 
 import logging
 
@@ -62,7 +70,7 @@ class LifeTime(ABC):
             output[s] = time
 
         return output
-    
+
     def mjd_from_season(self, season: EventType | str) -> tuple[float, float]:
         """Return MJD_min, MJD_max for provided season
 
@@ -75,9 +83,10 @@ class LifeTime(ABC):
         for c, v in enumerate([IC40, IC59, IC79, IC86]):
             if str(v) == str(season):
                 break
+        else:
+            raise ValueError(f"Season {season} is not implemented.")
 
         return self._times[c, 0], self._times[c, 1]
-
 
     def lifetime_from_season(
         self, *seasons: EventType | str

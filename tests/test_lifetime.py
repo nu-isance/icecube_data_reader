@@ -23,5 +23,14 @@ def test_lt_from_mjd():
     comparison = np.sum(np.diff(lt._data[IC40])[:2])
     assert pytest.approx(obs_time) == comparison
 
+
 def test_mjd_from_season():
-    pass
+    lt = IceTrackDR2LifeTime()
+    for s in DR2.available_irfs:
+        mjd_min, mjd_max = lt.mjd_from_season(s)
+        assert mjd_min == lt._data[s][0, 0]
+        assert mjd_max == lt.data[s][-1, 1]
+
+    with pytest.raises(ValueError) as e:
+        lt.mjd_from_season("potato")
+        assert "potato" in e

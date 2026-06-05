@@ -188,11 +188,11 @@ class IceTrackDR2Events(Events):
         :param i: Event index
         :type i: int
         """
-        self._energy = np.delete(self._energy, i)
-        self._coord = np.delete(self._coord, i)
-        self._unit_vector = np.delete(self._unit_vector, i, axis=0)
-        self._event_type = np.delete(self._event_type, i)
-        self._ang_err = np.delete(self._ang_err, i)
+        self._energies = np.delete(self._energies, i)
+        self._coords = np.delete(self._coords, i)
+        self._unit_vectors = np.delete(self._unit_vectors, i, axis=0)
+        self._types = np.delete(self._types, i)
+        self._ang_errs = np.delete(self._ang_errs, i)
         self._mjd = np.delete(self._mjd, i)
 
     def to_file(

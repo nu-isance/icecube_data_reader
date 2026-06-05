@@ -50,6 +50,14 @@ def test_selecting(test_saving):
     assert et == events.int_types[0]
 
 
+def test_removing(test_saving):
+    idx = 5
+    _, events = test_saving
+    N = events.N
+    events.remove(idx)
+    assert events.N == N - 1
+
+
 def test_erroneous_selecting(test_saving):
     idx = 5
     events = IceTrackDR2Events.from_event_files(IC40)
@@ -61,3 +69,14 @@ def test_erroneous_selecting(test_saving):
         mask = np.zeros(N + 1, dtype=bool)
         mask[1] = 1
         events.select(mask)
+
+
+def test_energy_cut(test_saving):
+    _, events = test_saving
+
+    Emin = 5e3 * u.GeV
+    Emax = 7e4 * u.GeV
+
+    events.apply_energy_cut(Emin=Emin, Emax=Emax)
+    assert np.all(events.energies <= Emax)
+    assert np.all(events.energies >= Emin)
