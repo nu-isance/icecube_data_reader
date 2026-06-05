@@ -10,11 +10,12 @@ import numpy as np
 from scipy import stats
 import astropy.units as u
 from astropy.coordinates import SkyCoord
+from astropy.time import Time
 from tqdm.notebook import tqdm
 from icecube_data_reader.downloader import available_datasets, data_directory, I3_14
 from icecube_data_reader.event_types import EventType
 from icecube_data_reader.utils.utils import DummyPDF
-from icecube_data_reader.events import Events
+from icecube_data_reader.events import IceTrackDR2Events
 from itertools import product
 
 import logging
@@ -334,7 +335,6 @@ class IceTracksDR2InstrumentResponseFunction(
         self,
         coord: SkyCoord,
         Etrue: u.GeV,
-        seed: int = 42,
         N: int = 1,
     ) -> np.ndarray:
         """Sample reco energy
@@ -344,21 +344,17 @@ class IceTracksDR2InstrumentResponseFunction(
         :type coord: SkyCoord
         :param Etrue: True neutrino energy
         :type Etrue: u.GeV
-        :param seed: Random seed, defaults to 42
-        :type seed: int, optional
         :param N: Number of events to sample if coord and Etrue are single values, defaults to 1
         :type N: int, optional
         :return: Array of reconstructed energies
         :rtype: np.ndarray
         """
 
-        _, _, recoE_out = self._sample_energy(coord, Etrue, seed, N)
+        _, _, recoE_out = self._sample_energy(coord, Etrue, N)
         return recoE_out
 
     @u.quantity_input
-    def sample(
-        self, coord: SkyCoord, Etrue: u.GeV, seed: int = 42, N: int = 1
-    ) -> Events:
+    def sample(self, coord: SkyCoord, Etrue: u.GeV, N: int = 1) -> IceTrackDR2Events:
         """Sample reco energy
 
         :param coord: Source coordinate,
@@ -366,15 +362,13 @@ class IceTracksDR2InstrumentResponseFunction(
         :type coord: SkyCoord
         :param Etrue: True neutrino energy
         :type Etrue: u.GeV
-        :param seed: Random seed, defaults to 42
-        :type seed: int, optional
         :param N: Number of events to sample if coord and Etrue are single values, defaults to 1
         :type N: int, optional
         :return:
         :rtype: np.ndarray
         """
 
-        tE_idx, c_d, recoE = self._sample_energy(coord, Etrue, seed, N)
+        tE_idx, c_d, recoE = self._sample_energy(coord, Etrue, N)
         set_e = np.unique(tE_idx)
 
         recoE = np.atleast_1d(recoE)
@@ -395,21 +389,43 @@ class IceTracksDR2InstrumentResponseFunction(
                     density=True,
                 )
                 _index_rE = np.atleast_1d(np.argwhere(idx_rE == reco_idxs).squeeze())
-                rvs = random.rvs(size=_index_rE.size)
+                rvs = random.rvs(size=_index_rE.size, random_state=self._random)
+                # we sample log10(angle/deg), need the angle in rad
+                # for sampling from the Rayleigh distribution
                 ang_errs_out[_index_e[_index_rE]] = np.deg2rad(np.power(10, rvs))
 
-        deflection_angles = stats.rayleigh.rvs(scale=ang_errs_out) * u.rad
+        deflection_angles = np.atleast_1d(
+            stats.rayleigh.rvs(scale=ang_errs_out, random_state=self._random) * u.rad
+        )
+        ang_errs_out = (ang_errs_out * u.rad).to(u.deg)
         # Deflecte like we do in stan: sample rotation axis orthonormal to the event
         # sample angle `theta` by which we rotate from Rayleigh dist with sampled ang_err as its sigma
         # rotate the initial direction/coord by `theta` around rotation axis
 
         coord.representation_type = "cartesian"
         direction = np.array([coord.x, coord.y, coord.z])
-
-        rot_axis = self._sample_orthonormal(direction)
-        rotated = self._rotate_around_vector(direction, rot_axis, angle)
-
-        return ang_errs_out
+        new_directions = np.zeros((3, N))
+        for c, angle in enumerate(deflection_angles):
+            rot_axis = self._sample_orthonormal(direction)
+            new_directions[:, c] = self._rotate_around_vector(
+                direction, rot_axis, angle
+            )
+        new_coords = SkyCoord(
+            x=new_directions[0],
+            y=new_directions[1],
+            z=new_directions[2],
+            frame="icrs",
+            representation_type="cartesian",
+        )
+        new_coords.representation_type = "spherical"
+        events = IceTrackDR2Events(
+            np.power(10, recoE) * u.GeV,
+            new_coords,
+            np.full(N, self.season),
+            ang_errs_out,
+            Time(np.full(N, 99.0), format="mjd"),
+        )
+        return events
 
     def _sample_orthonormal(self, x: np.ndarray) -> np.ndarray:
         """Sample a vector that is orthonormal to the input
@@ -419,8 +435,8 @@ class IceTracksDR2InstrumentResponseFunction(
         :return: Vector orthonormal to input
         :rtype: np.ndarray
         """
-        v = stats.norm().rvs(size=x.shape)
-        projected = x * np.vecdot(x, v) / np.linalg.norm(x)
+        v = stats.norm().rvs(size=x.shape, random_state=self._random)
+        projected = x * np.dot(x, v) / np.linalg.norm(x)
         ortho = v - projected
         orthonormal = ortho / np.linalg.norm(ortho)
         return orthonormal
@@ -439,7 +455,7 @@ class IceTracksDR2InstrumentResponseFunction(
         )
 
     def _sample_energy(
-        self, coord: SkyCoord, Etrue: u.GeV, seed: int = 42, N: int = 1
+        self, coord: SkyCoord, Etrue: u.GeV, N: int = 1
     ) -> tuple[np.ndarray, int, np.ndarray]:
         """Sample reco energy of events
 
@@ -448,8 +464,6 @@ class IceTracksDR2InstrumentResponseFunction(
         :type coord: SkyCoord
         :param Etrue: True neutrino energy
         :type Etrue: u.GeV
-        :param seed: Random seed, defaults to 42
-        :type seed: int, optional
         :param N: Number of events to sample if coord and Etrue are single values, defaults to 1
         :type N: int, optional
         :return: Etrue indices, declination index, array of reconstructed energies
@@ -476,7 +490,7 @@ class IceTracksDR2InstrumentResponseFunction(
         for idx_e in set_e:
             _index_e = np.atleast_1d(np.argwhere(idx_e == tE_idx).squeeze())
             recoE = self.recoE_sampling[idx_e][c_d].rvs(
-                size=_index_e.size, random_state=seed
+                size=_index_e.size, random_state=self._random
             )
             recoE_out[_index_e] = recoE
 
