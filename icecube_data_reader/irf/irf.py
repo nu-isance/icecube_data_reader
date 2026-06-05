@@ -43,6 +43,7 @@ class IceTracksDR2InstrumentResponseFunction(
 ):
 
     _STACK = {}
+
     def __init__(self, data: np.ndarray, season: EventType):
         """
         DO NOT instantiate it via init, but rather through the class method `load`
@@ -125,8 +126,11 @@ class IceTracksDR2InstrumentResponseFunction(
     def create_IRF(
         self,
         dec: u.Quantity[u.deg] | None = None,
-        dec_range: tuple[u.Quantity[u.deg], u.Quantity[u.deg]] = (-90. * u.deg, 90. * u.deg),
-        show_progress: bool = True
+        dec_range: tuple[u.Quantity[u.deg], u.Quantity[u.deg]] = (
+            -90.0 * u.deg,
+            90.0 * u.deg,
+        ),
+        show_progress: bool = True,
     ) -> None:
         """Create the entire IRF, i.e. energy and angular resolution.
 
@@ -147,8 +151,11 @@ class IceTracksDR2InstrumentResponseFunction(
     def create_eres(
         self,
         dec: u.Quantity[u.deg] | None = None,
-        dec_range: tuple[u.Quantity[u.deg], u.Quantity[u.deg]] = (-90. * u.deg, 90. * u.deg),
-        show_progress: bool = True
+        dec_range: tuple[u.Quantity[u.deg], u.Quantity[u.deg]] = (
+            -90.0 * u.deg,
+            90.0 * u.deg,
+        ),
+        show_progress: bool = True,
     ) -> None:
         """Create the energy resolution.
 
@@ -161,7 +168,7 @@ class IceTracksDR2InstrumentResponseFunction(
         :type dec_range: tuple[u.Quantity[u.deg], u.Quantity[u.deg]], optional
         :param show_progress: Display progress bar, defaults to True
         :type show_progress: bool, optional
-        """       
+        """
 
         if dec is not None:
             dec_idx = np.digitize(dec.to_value(u.deg), self.dec_bin_edges) - 1
@@ -176,12 +183,10 @@ class IceTracksDR2InstrumentResponseFunction(
             dec_size = dec_max_idx - dec_min_idx
 
         for c_d, c_tE in tqdm(
-            product(
-                dec_range, range(self.log_tE_bin_centers.size)
-            ), 
+            product(dec_range, range(self.log_tE_bin_centers.size)),
             disable=not show_progress,
             desc="Energy resolution",
-            total=self.log_tE_bin_centers.size * dec_size
+            total=self.log_tE_bin_centers.size * dec_size,
         ):
             if isinstance(
                 self.recoE_sampling[c_tE][c_d], stats.rv_histogram
@@ -190,10 +195,14 @@ class IceTracksDR2InstrumentResponseFunction(
             self._create_recoE_distribution(c_tE, c_d)
 
     @u.quantity_input
-    def create_ang_res(self,
+    def create_ang_res(
+        self,
         dec: u.Quantity[u.deg] | None = None,
-        dec_range: tuple[u.Quantity[u.deg], u.Quantity[u.deg]] = (-90. * u.deg, 90. * u.deg),
-        show_progress: bool = True
+        dec_range: tuple[u.Quantity[u.deg], u.Quantity[u.deg]] = (
+            -90.0 * u.deg,
+            90.0 * u.deg,
+        ),
+        show_progress: bool = True,
     ) -> None:
         """Create angular resolution distributions.
         The intermediate step of kinematic angle / PSF is irrelevant,
@@ -213,7 +222,7 @@ class IceTracksDR2InstrumentResponseFunction(
         :type show_progress: bool, optional
         :raises AssertionError: If not all ang_err_bin_edges within one pair of Etrue and DEC
         are the same, an AssertionError is raised
-        """        
+        """
 
         if dec is not None:
             dec_idx = np.digitize(dec.to_value(u.deg), self.dec_bin_edges) - 1
@@ -234,36 +243,48 @@ class IceTracksDR2InstrumentResponseFunction(
             (self.log_tE_bin_centers.size, self.sin_dec_bin_centers.size, 20, 20),
         )
         for c_d, c_tE in tqdm(
-            product(
-                dec_range, range(self.log_tE_bin_centers.size)
-            ), 
+            product(dec_range, range(self.log_tE_bin_centers.size)),
             disable=not show_progress,
             desc="Angular resolution",
-            total=self.log_tE_bin_centers.size * dec_size
+            total=self.log_tE_bin_centers.size * dec_size,
         ):
             if isinstance(
                 self.recoE_sampling[c_tE][c_d], stats.rv_histogram
             ) or isinstance(self.recoE_sampling[c_tE][c_d], DummyPDF):
-                etrue_data = self.data[self.data[:, self.etrue_idx] == self.log_tE_bin_edges[c_tE]]
-                data = etrue_data[etrue_data[:, self.dec_idx] == self.dec_bin_edges[c_d]]
+                etrue_data = self.data[
+                    self.data[:, self.etrue_idx] == self.log_tE_bin_edges[c_tE]
+                ]
+                data = etrue_data[
+                    etrue_data[:, self.dec_idx] == self.dec_bin_edges[c_d]
+                ]
             _, _, data = self._create_recoE_distribution(c_tE, c_d, return_data=True)
 
-            all_ang_err_bins = np.empty((self.recoE_bin_edges[c_tE, c_d].size - 1,), dtype=np.ndarray)
+            all_ang_err_bins = np.empty(
+                (self.recoE_bin_edges[c_tE, c_d].size - 1,), dtype=np.ndarray
+            )
             for c_rE, rE in enumerate(self.recoE_bin_edges[c_tE, c_d][:-1]):
                 # self.ang_err_hists[c_tE, c_d] = np.empty((self.recoE_hists[c_tE, c_d].size), dtype=np.ndarray)
                 red_data = data[data[:, self.ereco_idx] == rE]
-                all_ang_err_bins[c_rE] = np.unique(red_data[:, self.ang_err_idx:self.ang_err_idx+2].flatten())
+                all_ang_err_bins[c_rE] = np.unique(
+                    red_data[:, self.ang_err_idx : self.ang_err_idx + 2].flatten()
+                )
                 ang_err_counts = np.zeros(all_ang_err_bins[c_rE].size - 1)
                 for c_ar, ar in enumerate(all_ang_err_bins[c_rE][:-1]):
-                    ang_err_counts[c_ar] = red_data[red_data[:, self.ang_err_idx] == ar, -1].sum()
+                    ang_err_counts[c_ar] = red_data[
+                        red_data[:, self.ang_err_idx] == ar, -1
+                    ].sum()
                 hist = ang_err_counts.copy()
-                self.ang_err_hists[c_tE, c_d, c_rE] = hist / (hist * np.diff(all_ang_err_bins[c_rE])).sum()
+                self.ang_err_hists[c_tE, c_d, c_rE] = (
+                    hist / (hist * np.diff(all_ang_err_bins[c_rE])).sum()
+                )
             for low, high in pairwise(all_ang_err_bins):
                 if not np.all(low == high):
                     # Has been tested in a notebook, should be fine!
-                    raise AssertionError("Not all ang_err bins are the same! Investigate manually and fix me.")
-            
-            self.ang_err_bin_edges[c_tE, c_d] = all_ang_err_bins[0].copy()        
+                    raise AssertionError(
+                        "Not all ang_err bins are the same! Investigate manually and fix me."
+                    )
+
+            self.ang_err_bin_edges[c_tE, c_d] = all_ang_err_bins[0].copy()
 
     @classmethod
     def load(cls, season: EventType) -> Self:
@@ -315,7 +336,7 @@ class IceTracksDR2InstrumentResponseFunction(
         Etrue: u.GeV,
         seed: int = 42,
         N: int = 1,
-        ) -> tuple[np.ndarray, int, np.ndarray]:
+    ) -> np.ndarray:
         """Sample reco energy
 
         :param coord: Source coordinate,
@@ -331,10 +352,13 @@ class IceTracksDR2InstrumentResponseFunction(
         :rtype: np.ndarray
         """
 
-        return self._sample_energy(coord, Etrue, seed, N)
-    
+        _, _, recoE_out = self._sample_energy(coord, Etrue, seed, N)
+        return recoE_out
+
     @u.quantity_input
-    def sample(self, coord: SkyCoord, Etrue: u.GeV, seed: int = 42, N: int = 1) -> Events:
+    def sample(
+        self, coord: SkyCoord, Etrue: u.GeV, seed: int = 42, N: int = 1
+    ) -> Events:
         """Sample reco energy
 
         :param coord: Source coordinate,
@@ -346,7 +370,7 @@ class IceTracksDR2InstrumentResponseFunction(
         :type seed: int, optional
         :param N: Number of events to sample if coord and Etrue are single values, defaults to 1
         :type N: int, optional
-        :return: 
+        :return:
         :rtype: np.ndarray
         """
 
@@ -358,17 +382,21 @@ class IceTracksDR2InstrumentResponseFunction(
 
         for idx_e in set_e:
             _index_e = np.atleast_1d(np.argwhere(idx_e == tE_idx).squeeze())
-            reco_idxs = np.digitize(recoE[_index_e], self.recoE_bin_edges[idx_e, c_d]) - 1
+            reco_idxs = (
+                np.digitize(recoE[_index_e], self.recoE_bin_edges[idx_e, c_d]) - 1
+            )
             set_rE = np.unique(reco_idxs)
             for idx_rE in set_rE:
                 random = stats.rv_histogram(
-                    (self.ang_err_hists[idx_e, c_d, idx_rE], self.ang_err_bin_edges[idx_e, c_d]),
-                    density=True
+                    (
+                        self.ang_err_hists[idx_e, c_d, idx_rE],
+                        self.ang_err_bin_edges[idx_e, c_d],
+                    ),
+                    density=True,
                 )
                 _index_rE = np.atleast_1d(np.argwhere(idx_rE == reco_idxs).squeeze())
-                rvs = random.rvs(size = _index_rE.size)
+                rvs = random.rvs(size=_index_rE.size)
                 ang_errs_out[_index_e[_index_rE]] = np.deg2rad(np.power(10, rvs))
-
 
         deflection_angles = stats.rayleigh.rvs(scale=ang_errs_out) * u.rad
         # Deflecte like we do in stan: sample rotation axis orthonormal to the event
@@ -381,11 +409,8 @@ class IceTracksDR2InstrumentResponseFunction(
         rot_axis = self._sample_orthonormal(direction)
         rotated = self._rotate_around_vector(direction, rot_axis, angle)
 
-
-
-
         return ang_errs_out
-    
+
     def _sample_orthonormal(self, x: np.ndarray) -> np.ndarray:
         """Sample a vector that is orthonormal to the input
 
@@ -393,28 +418,29 @@ class IceTracksDR2InstrumentResponseFunction(
         :type x: np.ndarray
         :return: Vector orthonormal to input
         :rtype: np.ndarray
-        """        
+        """
         v = stats.norm().rvs(size=x.shape)
         projected = x * np.vecdot(x, v) / np.linalg.norm(x)
         ortho = v - projected
         orthonormal = ortho / np.linalg.norm(ortho)
         return orthonormal
-    
+
     @u.quantity_input
-    def _rotate_around_vector(self, rotatee: np.ndarray, axis: np.ndarray, theta: u.rad) -> np.ndarray:
-        """Rotate a vector around a second vector by an angle
-        """
+    def _rotate_around_vector(
+        self, rotatee: np.ndarray, axis: np.ndarray, theta: u.rad
+    ) -> np.ndarray:
+        """Rotate a vector around a second vector by an angle"""
 
         theta = theta.to_value(u.rad)
-        return axis * np.dot(rotatee, axis) + np.cos(theta) * np.cross(np.cross(axis, rotatee), axis) + np.sin(theta) * np.cross(axis, rotatee)
+        return (
+            axis * np.dot(rotatee, axis)
+            + np.cos(theta) * np.cross(np.cross(axis, rotatee), axis)
+            + np.sin(theta) * np.cross(axis, rotatee)
+        )
 
     def _sample_energy(
-            self,
-            coord: SkyCoord,
-            Etrue: u.GeV,
-            seed: int = 42,
-            N: int = 1
-        ) -> tuple[np.ndarray, int, np.ndarray]:
+        self, coord: SkyCoord, Etrue: u.GeV, seed: int = 42, N: int = 1
+    ) -> tuple[np.ndarray, int, np.ndarray]:
         """Sample reco energy of events
 
         :param coord: Source coordinate,
@@ -520,6 +546,7 @@ class IceTracksDR2InstrumentResponseFunction(
         if return_data:
             return frac_counts, bins, reduced_data
         return frac_counts, bins
+
 
 if __name__ == "__main__":
     from icecube_data_reader.event_types import IC86
