@@ -45,7 +45,12 @@ class IceTracksDR2InstrumentResponseFunction(
 
     _STACK = {}
 
-    def __init__(self, data: np.ndarray, season: EventType):
+    def __init__(
+        self,
+        data: np.ndarray,
+        season: EventType,
+        random_state: np.random.Generator = np.default_rng(seed=42),
+    ):
         """
         DO NOT instantiate it via init, but rather through the class method `load`
 
@@ -55,8 +60,9 @@ class IceTracksDR2InstrumentResponseFunction(
         :type season: EventType
         """
 
-        self.data = data
-        self.season = season
+        self._data = data
+        self._season = season
+        self._random = random_state
 
         self.etrue_idx = 0
         self.dec_idx = 2
@@ -64,11 +70,26 @@ class IceTracksDR2InstrumentResponseFunction(
         self.psf_idx = 6
         self.ang_err_idx = 8
 
-        self._eres = False
-        self._ang_res = False
-
         if season in self._STACK:
             self.__dict__ = self.STACK[season].__dict__
+
+    @property
+    def random(self):
+        return self._random
+
+    @random.setter
+    def random(self, val: np.random.Generator):
+        if not isinstance(val, np.random.Generator):
+            raise ValueError("random must be instance of `np.random.Generator`")
+        self._random = val
+
+    @property
+    def data(self):
+        return self._data
+
+    @property
+    def season(self):
+        return self._season
 
     def _post_init(self):
         # Break naming convention because r and t are too close on the keyboard
@@ -404,6 +425,7 @@ class IceTracksDR2InstrumentResponseFunction(
 
         coord.representation_type = "cartesian"
         direction = np.array([coord.x, coord.y, coord.z])
+        coord.representation_type = "spherical"
         new_directions = np.zeros((3, N))
         for c, angle in enumerate(deflection_angles):
             rot_axis = self._sample_orthonormal(direction)

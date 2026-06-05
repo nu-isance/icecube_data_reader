@@ -11,9 +11,6 @@ import numpy.typing as npt
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from astropy.time import Time
-import matplotlib.pyplot as plt
-from matplotlib import colors
-import matplotlib.cm as cm
 import h5py
 from time import time as thyme
 
