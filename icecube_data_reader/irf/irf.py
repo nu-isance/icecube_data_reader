@@ -109,6 +109,12 @@ class IceTracksDR2InstrumentResponseFunction(
         self.ang_err_hists = np.zeros(
             (self.log_tE_bin_centers.size, self.sin_dec_bin_centers.size, 20, 20),
         )
+        self.psf_bin_edges = np.zeros(
+            (self.log_tE_bin_centers.size, self.sin_dec_bin_centers.size, 21)
+        )
+        self.psf_hists = np.zeros(
+            (self.log_tE_bin_centers.size, self.sin_dec_bin_centers.size, 20, 20)
+        )
 
         self.faulty = []
         for c_e in range(self.log_tE_bin_centers.size):
@@ -258,9 +264,25 @@ class IceTracksDR2InstrumentResponseFunction(
             all_ang_err_bins = np.empty(
                 (self.recoE_bin_edges[c_tE, c_d].size - 1,), dtype=np.ndarray
             )
+            all_psf_bins = np.empty(
+                (self.recoE_bin_edges[c_tE, c_d].size - 1), dtype=np.ndarray
+            )
+
             for c_rE, rE in enumerate(self.recoE_bin_edges[c_tE, c_d][:-1]):
                 # self.ang_err_hists[c_tE, c_d] = np.empty((self.recoE_hists[c_tE, c_d].size), dtype=np.ndarray)
                 red_data = data[data[:, self.ereco_idx] == rE]
+                all_psf_bins[c_rE] = np.unique(
+                    red_data[:, self.psf_idx : self.psf_idx + 2].flatten()
+                )
+                psf_counts = np.zeros(all_psf_bins[c_rE].size - 1)
+                for c_p, p in enumerate(all_psf_bins[c_rE][:-1]):
+                    psf_counts[c_p] = red_data[red_data[:, self.psf_idx] == p, -1].sum()
+                psf_hist = psf_counts.copy()
+                if np.any(psf_hist):
+                    self.psf_hists[c_tE, c_d, c_rE] = (
+                        psf_hist / (psf_hist * np.diff(all_psf_bins[c_rE])).sum()
+                    )
+                # repeat for marginalised ang_err (TODO: replace properly)
                 all_ang_err_bins[c_rE] = np.unique(
                     red_data[:, self.ang_err_idx : self.ang_err_idx + 2].flatten()
                 )
@@ -269,10 +291,11 @@ class IceTracksDR2InstrumentResponseFunction(
                     ang_err_counts[c_ar] = red_data[
                         red_data[:, self.ang_err_idx] == ar, -1
                     ].sum()
-                hist = ang_err_counts.copy()
-                if np.any(hist):
+                ang_err_hist = ang_err_counts.copy()
+                if np.any(ang_err_hist):
                     self.ang_err_hists[c_tE, c_d, c_rE] = (
-                        hist / (hist * np.diff(all_ang_err_bins[c_rE])).sum()
+                        ang_err_hist
+                        / (ang_err_hist * np.diff(all_ang_err_bins[c_rE])).sum()
                     )
             for low, high in pairwise(all_ang_err_bins):
                 if not np.all(low == high):
@@ -280,8 +303,15 @@ class IceTracksDR2InstrumentResponseFunction(
                     raise AssertionError(
                         "Not all ang_err bins are the same! Investigate manually and fix me."
                     )
+            for low, high in pairwise(all_psf_bins):
+                if not np.all(low == high):
+                    # Has been tested in a notebook, should be fine!
+                    raise AssertionError(
+                        "Not all psf bins are the same! Investigate manually and fix me."
+                    )
 
             self.ang_err_bin_edges[c_tE, c_d] = all_ang_err_bins[0].copy()
+            self.psf_bin_edges[c_tE, c_d] = all_psf_bins[0].copy()
 
     @classmethod
     def load(cls, season: EventType) -> Self:
