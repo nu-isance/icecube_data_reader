@@ -65,6 +65,6 @@ def test_ang_res(irf):
 
 
 def test_load():
-    for et in DR2.detectors:
+    for et in DR2.available_irfs:
         irf = IceTracksDR2InstrumentResponseFunction.load(et)
         irf.create_IRF()
