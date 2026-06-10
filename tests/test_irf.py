@@ -1,7 +1,7 @@
 import pytest
 
 from icecube_data_reader.irf.irf import IceTracksDR2InstrumentResponseFunction
-from icecube_data_reader.event_types import IC86
+from icecube_data_reader.event_types import IC86, DR2
 import numpy as np
 import astropy.units as u
 from astropy.coordinates import SkyCoord
@@ -62,3 +62,9 @@ def test_ang_res(irf):
     assert np.unique(events.coords.ra).size == 100
     assert np.unique(events.coords.dec).size == 100
     assert np.unique(events.coords.separation(coord)).size == 100
+
+
+def test_load():
+    for et in DR2.detectors:
+        irf = IceTracksDR2InstrumentResponseFunction.load(et)
+        irf.create_IRF()

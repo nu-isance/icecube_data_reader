@@ -102,7 +102,6 @@ class IceTracksDR2InstrumentResponseFunction(
             (self.log_tE_bin_centers.size, self.sin_dec_bin_centers.size),
             dtype=stats.rv_histogram,
         )
-        # Use lists here for possibly different numbers of bins for each ereco/psf/angerr histogram
         self.ang_err_bin_edges = np.zeros(
             (self.log_tE_bin_centers.size, self.sin_dec_bin_centers.size, 21),
         )
@@ -263,33 +262,35 @@ class IceTracksDR2InstrumentResponseFunction(
                     etrue_data[:, self.dec_idx] == self.dec_bin_edges[c_d]
                 ]
             elif isinstance(self.recoE_sampling[c_tE][c_d], DummyPDF):
-                continue
+                self.psf_bin_edges[c_tE, c_d] = np.arange(21)
+                self.ang_err_bin_edges[c_tE, c_d] = np.arange(21)
             else:
                 _, _, data = self._create_recoE_distribution(
                     c_tE, c_d, return_data=True
                 )
 
-            all_ang_err_bins = np.empty(
-                (self.recoE_bin_edges[c_tE, c_d].size - 1,), dtype=np.ndarray
-            )
-            all_psf_bins = np.empty(
-                (self.recoE_bin_edges[c_tE, c_d].size - 1), dtype=np.ndarray
-            )
-
+            all_ang_err_bins = []
+            all_psf_bins = []
+            if data is None:
+                self.psf_bin_edges[c_tE, c_d] = np.arange(21)
+                self.ang_err_bin_edges[c_tE, c_d] = np.arange(21)
+                continue
             for c_rE, rE in enumerate(self.recoE_bin_edges[c_tE, c_d][:-1]):
                 red_data = data[data[:, self.ereco_idx] == rE]
-                all_psf_bins[c_rE] = np.unique(
-                    red_data[:, self.psf_idx : self.psf_idx + 2].flatten()
+                all_psf_bins.append(
+                    np.unique(red_data[:, self.psf_idx : self.psf_idx + 2].flatten())
                 )
-                psf_counts = np.zeros(all_psf_bins[c_rE].size - 1)
-                all_ang_err_bins[c_rE] = np.unique(
-                    red_data[:, self.ang_err_idx : self.ang_err_idx + 2].flatten()
+                psf_counts = np.zeros(all_psf_bins[-1].size - 1)
+                all_ang_err_bins.append(
+                    np.unique(
+                        red_data[:, self.ang_err_idx : self.ang_err_idx + 2].flatten()
+                    )
                 )
-                ang_err_counts = np.zeros(all_ang_err_bins[c_rE].size - 1)
-                for c_p, p in enumerate(all_psf_bins[c_rE][:-1]):
+                ang_err_counts = np.zeros(all_ang_err_bins[-1].size - 1)
+                for c_p, p in enumerate(all_psf_bins[-1][:-1]):
                     psf_red_data = red_data[red_data[:, self.psf_idx] == p]
                     psf_counts[c_p] = psf_red_data[:, -1].sum()
-                    for c_a, a in enumerate(all_ang_err_bins[c_rE][:-1]):
+                    for c_a, a in enumerate(all_ang_err_bins[-1][:-1]):
                         count = psf_red_data[
                             psf_red_data[:, self.ang_err_idx] == a
                         ].squeeze()
@@ -298,15 +299,15 @@ class IceTracksDR2InstrumentResponseFunction(
                     if np.any(ang_err_hist):
                         self.ang_err_hists[c_tE, c_d, c_rE, c_p] = (
                             ang_err_hist
-                            / (ang_err_hist * np.diff(all_ang_err_bins[c_rE])).sum()
+                            / (ang_err_hist * np.diff(all_ang_err_bins[-1])).sum()
                         )
                 psf_hist = psf_counts.copy()
                 if np.any(psf_hist):
                     self.psf_hists[c_tE, c_d, c_rE] = (
-                        psf_hist / (psf_hist * np.diff(all_psf_bins[c_rE])).sum()
+                        psf_hist / (psf_hist * np.diff(all_psf_bins[-1])).sum()
                     )
                 # repeat for marginalised ang_err (TODO: replace properly)
-                for c_ar, ar in enumerate(all_ang_err_bins[c_rE][:-1]):
+                for c_ar, ar in enumerate(all_ang_err_bins[-1][:-1]):
                     ang_err_counts[c_ar] = red_data[
                         red_data[:, self.ang_err_idx] == ar, -1
                     ].sum()
