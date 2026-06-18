@@ -8,6 +8,7 @@ from os.path import join
 from pathlib import Path
 import numpy as np
 import numpy.typing as npt
+from typing import Iterable
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from astropy.time import Time
@@ -124,7 +125,7 @@ class IceTrackDR2Events(Events):
         self,
         energies: u.GeV,
         coords: SkyCoord,
-        types: np.ndarray,
+        types: Iterable[EventType],
         ang_errs: u.deg,
         mjd: Time,
     ):
@@ -194,6 +195,7 @@ class IceTrackDR2Events(Events):
         self._types = np.delete(self._types, i)
         self._ang_errs = np.delete(self._ang_errs, i)
         self._mjd = np.delete(self._mjd, i)
+        self._int_types = np.delete(self._int_types, i)
 
     def to_file(
         self,
