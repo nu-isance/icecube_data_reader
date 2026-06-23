@@ -264,6 +264,7 @@ class IceTracksDR2InstrumentResponseFunction(
             elif isinstance(self.recoE_sampling[c_tE][c_d], DummyPDF):
                 self.psf_bin_edges[c_tE, c_d] = np.arange(21)
                 self.ang_err_bin_edges[c_tE, c_d] = np.arange(21)
+                data = None
             else:
                 _, _, data = self._create_recoE_distribution(
                     c_tE, c_d, return_data=True
