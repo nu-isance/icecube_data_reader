@@ -18,6 +18,9 @@ class EventType:
 
     def __eq__(self, other):
         return self.S == other.S
+    
+    def __int__(self):
+        return self.S
 
 
 @dataclass(eq=False)

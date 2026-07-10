@@ -34,6 +34,10 @@ class LifeTime(ABC):
     @property
     def data(self):
         return self._data
+    
+    @property
+    def dists(self):
+        return self._dists
 
     def lifetime_from_mjd(
         self, mjd_min: float, mjd_max: float, squeeze: bool = True
@@ -61,7 +65,7 @@ class LifeTime(ABC):
             # Query histograms for fraction of total lifetime in a season
             # multiply by total lifetime in a season to get appropriate value
             time = (
-                self._dists[s].cdf(mjd_max) - self._dists[s].cdf(mjd_min)
+                self.dists[s].cdf(mjd_max) - self.dists[s].cdf(mjd_min)
             ) * self._lifetimes[s]
             # set atol to 1e-9 days, so we are below the time resolution of event mjd (1e-8 days)
             if squeeze and np.isclose(time.to_value(u.d), 0.0, atol=1e-9):
@@ -106,6 +110,24 @@ class LifeTime(ABC):
             output[s] = self._lifetimes[s]
 
         return output
+    
+    def draw_event_mjd(
+        self, event_numbers: dict[EventType, int]
+    ) -> dict[EventType, Time]:
+        """Draw event MJDs for scrambling the arrival times of events
+        TODO: add min/max mjd
+
+        :param event_numbers: Dict of event type and requested numbers
+        :type event_numbers: dict[EventType, int]
+        :return: Dictionary of event types and new MJDs
+        :rtype: dict[EventType, Time]
+        """
+
+        out = {}
+        for dm, num in event_numbers.items():
+            out[dm] = Time(self._dists[dm].rvs(size=num), format="mjd")
+
+        return out
 
 
 class IceTrackDR2LifeTime(LifeTime):
@@ -173,16 +195,3 @@ class IceTrackDR2LifeTime(LifeTime):
             # density=True for on_off to be treated as density
             self._dists[s] = stats.rv_histogram((on_off, bins), density=True)
 
-    def draw_event_mjd(
-        self, event_numbers: dict[EventType, int]
-    ) -> dict[EventType, Time]:
-        """Draw event MJDs for scrambling the arrival times of events
-        TODO: add min/max mjd
-
-        :param event_numbers: Dict of event type and requested numbers
-        :type event_numbers: dict[EventType, int]
-        :return: Dictionary of event types and new MJDs
-        :rtype: dict[EventType, Time]
-        """
-
-        raise NotImplementedError()

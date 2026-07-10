@@ -30,7 +30,6 @@ from icecube_data_reader.event_types import (
     EventType,
     Refrigerator,
 )
-from icecube_data_reader.lifetime import LifeTime
 
 from typing import Self
 import logging
@@ -62,11 +61,11 @@ class Events(ABC):
 
     @property
     def ra(self):
-        return self._ra
+        return self.coords.ra
 
     @property
     def dec(self):
-        return self._dec
+        return self.coords.dec
 
     @property
     def unit_vectors(self):
@@ -151,13 +150,35 @@ class IceTrackDR2Events(Events):
         """
 
         logger.warning("Scrambling RA. To revert this operation reload the events")
-        rng = np.default_rng(seed=seed)
+        rng = np.random.default_rng(seed=seed)
         ra = rng.random(self.ra.size) * 2 * np.pi * u.rad
-        self.ra = ra.to(u.deg)
-        self.coords = SkyCoord(ra=self.ra, dec=self.dec, frame="icrs")
+        self._coords = SkyCoord(ra=ra, dec=self.dec, frame="icrs")
 
-    def scramble_mjd(self, lifetime: LifeTime, seed: int = 42) -> None:
-        pass
+    def scramble_mjd(self, seed: int = 42) -> None:
+        """Scrambles event mjd.
+
+        :param seed: random seed, defaults to 42
+        :type seed: int, optional
+        :returns: None
+        """        
+        
+        from icecube_data_reader.lifetime import IceTrackDR2LifeTime as LifeTime
+
+        dm_set, inverse, counts = np.unique(self.int_types, return_inverse=True, return_counts=True)
+        new_mjd = np.zeros(self.N)
+        counts_dict = {}
+        for dm, count in zip(dm_set, counts):
+            counts_dict[Refrigerator.int2dm(dm)] = count
+        lifetime = LifeTime()
+        draw_mjd = lifetime.draw_event_mjd(counts_dict)
+        for c, dm in enumerate(dm_set):
+            new_mjd[inverse==c] = draw_mjd[Refrigerator.int2dm(dm)].mjd
+
+        self._mjd = Time(new_mjd, format="mjd")
+
+
+
+
 
     def select(self, mask: npt.NDArray[np.bool_]) -> None:
         """
