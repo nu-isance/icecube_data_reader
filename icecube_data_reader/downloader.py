@@ -30,7 +30,7 @@ I3_10 = DR1
 
 available_datasets = {
     I3_14: {
-        "url": "https://dataverse.harvard.edu/api/access/dataset/:persistentId/versions/1.0?persistentId=doi:10.7910/DVN/MMIIZA",
+        "url": "https://dataverse.harvard.edu/api/access/dataset/:persistentId/versions/2.0?persistentId=doi:10.7910/DVN/MMIIZA",
         "dir": "IceTracksDR2",
         "subdir": "icecube_14year_ps",
     },
